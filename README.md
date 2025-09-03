@@ -25,5 +25,5 @@ npm install dotenv d3-random p-limit tinyqueue
 ```
 npm start
 ```
-&nbsp;&nbsp;&nbsp;*Results are gzip csv, written to the `data/` directory*
+&nbsp;&nbsp;&nbsp;*Results are gzip csv, written to the `data/` directory*   
 3. Review `.env` and `config/` for custom configuration   
