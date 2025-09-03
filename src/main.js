@@ -21,6 +21,35 @@ const __filename  = fileURLToPath(import.meta.url);
 const __dirname   = path.dirname(__filename);
 const PROJ_ROOT   = path.resolve(__dirname, '..');
 
+/* Initialization and Setup */
+const ERR_LOG   = path.join(__dirname, 'error.log');
+const HISTORY   = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
+const MANIFEST  = JSON.parse(fs.readFileSync(path.join(
+                             PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
+const POOLS     = JSON.parse(fs.readFileSync(path.join(
+                             PROJ_ROOT, 'config/pools.json'), 'utf8'),
+                            (k, v) => (k.startsWith('Comment') ? undefined : v));
+
+/* Define all .env constants here, so we can check them (not null) */
+const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
+const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
+const THREADS    = Number(process.env.THREADS);
+
+const BLOCKTIME  = Number(process.env.BLOCKTIME);
+const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
+const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
+const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
+const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
+const NETWORK_HASH = Number(process.env.NETWORK_HASH);
+
+const FORK_WINDOW = Number(process.env.FORK_WINDOW);
+const FORK_DECAY = Number(process.env.FORK_DECAY);
+const NTP_STDEV  = Number(process.env.NTP_STDEV);
+const PING_AVG   = Number(process.env.PING_AVG);
+const BLK_TX_AVG = Number(process.env.BLK_TX_AVG);
+const SEED       = Number(process.env.SEED) >>> 0;
+const rng        = randomLcg(SEED);
+
 /* Results files and recording tools */
 let   RESULTS_BLOCKS, RESULTS_SCORES;
 const RESULTS_DIR = path.join(PROJ_ROOT, 'data/');
@@ -31,32 +60,6 @@ let   blockFields = [];
 let   scoreFields = [];
 const blockBuffer = [];
 const scoreBuffer = [];
-
-/* Initialization and Setup */
-const ERR_LOG   = path.join(__dirname, 'error.log');
-const HISTORY   = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
-const MANIFEST  = JSON.parse(fs.readFileSync(path.join(
-                             PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
-const POOLS     = JSON.parse(fs.readFileSync(path.join(
-                             PROJ_ROOT, 'config/pools.json'), 'utf8'),
-                            (k, v) => (k.startsWith('Comment') ? undefined : v));
-/* Define all .env constants here, so we can check them (not null) */
-const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
-const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
-const THREADS    = Number(process.env.THREADS);
-const BLOCKTIME  = Number(process.env.BLOCKTIME);
-const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
-const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
-const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
-const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
-const NETWORK_HASH = Number(process.env.NETWORK_HASH);
-const FORK_WINDOW = Number(process.env.FORK_WINDOW);
-const FORK_DECAY = Number(process.env.FORK_DECAY);
-const NTP_STDEV  = Number(process.env.NTP_STDEV);
-const PING_AVG   = Number(process.env.PING_AVG);
-const BLK_TX_AVG = Number(process.env.BLK_TX_AVG);
-const SEED       = Number(process.env.SEED) >>> 0;
-const rng        = randomLcg(SEED);
 
 // Troubleshooting stanza. Leave for now in case it's needed later. Shows open processes
 const activeProcessesLog = (() => {
@@ -250,7 +253,7 @@ function initializePools(pools, hScore, startTip) {
    for (const poolKey in pools) {
       const p            = pools[poolKey];
       const ntpDrift     = normalNtp();
-      const score        = { ...hScore, localTime: hScore.localTime + ntpDrift };
+      const score        = { ...hScore, localTime: Math.floor(hScore.localTime + ntpDrift) };
       p.id               = poolKey;                 // Enrich with id=Key for simplicity later
       p.ntpDrift         = ntpDrift;                // Persistent ntp drift
       p.hashrate         = p.HPP * NETWORK_HASH;    // hashrate based on hashpower percentage
