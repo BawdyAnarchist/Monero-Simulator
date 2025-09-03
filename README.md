@@ -5,9 +5,9 @@ This codebase implements a discrete-event framework for analyzing miner PoW dyna
 
 ### Features
 - **Multi-Pool Simulation:**  Set strategy and hashrate for an arbitrary number of pools 
-  - src/pools.json
+  - config/pools.json
 - **Pluggable Strategies:**  Simple API to implement custom mining strategies
-  - src/strategy_manifest.json
+  - config/strategy_manifest.json
 - **Stochastic Network Model:**  Tunable parameters with reproducible seed
   - .env
 - **Multi Threaded:** Run isolated rounds in parallel
@@ -25,5 +25,5 @@ npm install dotenv d3-random p-limit tinyqueue
 ```
 npm start
 ```
-&nbsp;&nbsp;&nbsp;*Results are gzip csv, written to the `data/` directory*   
+*Results are gzip csv, written to the `data/` directory*   
 3. Review `.env` and `config/` for custom configuration   
