@@ -3,7 +3,7 @@
 config/pools.json
 config/strategy_manifest.json
 config/difficulty_bootstrap.csv
-data/
+data/*
 !data/sample_data/
 docs/todo.md
 node_modules/
