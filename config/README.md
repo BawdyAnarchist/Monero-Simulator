@@ -1,7 +1,7 @@
 
 ---
 
-### `src/README.md`
+#### `config/README.md`
 
 Do not modify the example/sample/default files. Copy them first (or just run the sim once and they'll be copied automatically. The `default.env` is copied to the parent directory as: `.env`
 

@@ -1,3 +1,5 @@
+##  NOTE: This is an example file. DO NOT MODIFY IT!!  ##
+##  For runtime changes, copy-to and edit: config/pools.json  ##
 {
 "P0": { "strategy": "HB0", "HPP": 0.31},
 "P1": { "strategy": "HB0", "HPP": 0.22},
