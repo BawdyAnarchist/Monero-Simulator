@@ -1,3 +1,5 @@
+##  NOTE: This is a sample file. DO NOT MODIFY IT!!  ##
+##  For runtime changes, copy-to and edit: config/difficulty_bootstrap.csv  ##
 height,timestamp,difficulty,cumulative_difficulty
 3357123,1740700811,492450576447,428141294612320000
 3357124,1740700910,491507619086,428141786119939000
