@@ -270,6 +270,7 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
       bNew.timestamp = results.timestamp;
 
       /* Difficulty window wasnt updated earlier because sorting with a null timestamp, fails */
+      if (!diffWindows[oldTip]) reconstructDiffWindow(oldTip);  // Edge cases see needed window deleted
       diffWindows[newTip] = diffWindows[oldTip].slice(1).concat({
          timestamp:     results.timestamp,
          cumDifficulty: bNew.cumDifficulty
