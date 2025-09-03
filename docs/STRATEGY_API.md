@@ -1,8 +1,6 @@
 
 ---
 
-### `src/plugins/README.md`
-
 ## Strategy Plugin API Reference
 
 Strategy modules define a pool's behavior in response to network events. The simulation core (`sim_core.js`) calls the registered `entryPoint` function for a strategy, passing it the current state. The strategy must then return an object instructing the core on how to proceed.
@@ -62,7 +60,7 @@ When handling a `RECV` event, the strategy must score the incoming block(s). The
 *Score Entry Object:*
 | Property | Type | Description |
 |---|---|---|
-| `localTime` | number | The pool's `simClock` time when it processed the block (rounded Unix seconds). |
+| `localTime` | number | The pool's belief about unix NTP when it received the block header. |
 | `diffScore` | BigInt | The raw block difficulty, potentially adjusted by a scoring mechanism. |
 | `cumDiffScore` | BigInt | The cumulative difficulty score from the genesis block to this one. |
 | `isHeaviest` | boolean | The pool's belief on whether this block is on the heaviest chain. |
@@ -78,8 +76,8 @@ When handling a `RECV` event, the strategy must score the incoming block(s). The
 | `simClock` | number | The global simulation timestamp for this event (high-precision float). |
 | `poolId` | string | The ID of the pool processing the event. |
 | `action` | string | The type of event: `'CREATE_BLOCK'` or `'RECV_BLOCK'`. |
-| `chaintip` | string | The `blockId` that the new block (`newTip`) is extending. |
-| `newTip` | string | The `blockId` of the block that was just created or received. |
+| `chaintip` | string | The `blockId` that is being extended by the event. |
+| `newTip` | string | The new `blockId` that attempts to extend the `chaintip`. |
 
 #### `pool` Object (Read-Only)
 
