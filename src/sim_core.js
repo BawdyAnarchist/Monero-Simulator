@@ -64,12 +64,12 @@ function makeNoiseFunctions() {
    const bwMu     = Math.log(bwMean)   - 0.5 * sigma2;  // Time to send full block ("bandwidth")
    const makeLogNormal = randomLogNormal.source(rng);   // Declare once, more efficient 
 
+  /* blockTime, 1-way ping, bandwidth (tx time to send block), fork probability on overlap */
    return {
       block : randomExponential.source(rng),
       ping  : makeLogNormal(pingMu, sigma),
       bw    : makeLogNormal(bwMu, sigma),
-      fork  : (dt) =>                      // Near-overlap blockTime fork probability. Exp decay
-         dt < FORK_WINDOW && rng() < Math.exp(-FORK_DECAY * dt / FORK_WINDOW)
+      fork  : (dt) => dt < FORK_WINDOW && rng() < Math.exp(-FORK_DECAY * dt / FORK_WINDOW)
    }
 }
 
