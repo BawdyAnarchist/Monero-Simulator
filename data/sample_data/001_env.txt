@@ -1,16 +1,17 @@
 # Sim resources
 DEBUG=false
-SIM_DEPTH=1  # simulated hours to run
+SIM_DEPTH=1  # simulated hours. 720H ≈ 1M, 8760H ≈ 1Y
 SIM_ROUNDS=1
 THREADS=1
+### RAM: Must be changed in package.json. --max-old-space-size (in MB)
 
 # Monero network parameters
-NETWK_HASH=4265000000
 BLOCKTIME=120
 DIFFICULTY_TARGET_V2=120
 DIFFICULTY_WINDOW= 720
 DIFFICULTY_LAG=15 
 DIFFICULTY_CUT= 60
+NETWORK_HASH=4265000000
 
 # Real-world noise simulation distribution functions 
 SEED=1           # Seed for reproducibility
