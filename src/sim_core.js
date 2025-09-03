@@ -160,6 +160,8 @@ function calculateNextDifficulty(blockId) {
    contender chaintip. We extract and sort those arrays to look like difficulty.cpp.
 */
    debug(`calculateNextDifficulty START: blockId: ${blockId}`);
+
+   if (!diffWindows[blockId]) reconstructDiffWindow(blockId);     // Safety for edge cases
    const diffWindow = [...diffWindows[blockId]]
       .slice(0, DIFFICULTY_WINDOW)
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -191,6 +193,19 @@ function calculateNextDifficulty(blockId) {
 
    debug(`calculateNextDifficulty END: block: ${blockId}, newDifficulty: ${new_difficulty}`);
    return new_difficulty <= 0n ? 1n : new_difficulty;
+}
+
+function reconstructDiffWindow(blockId) {
+   debug(`reconstructDiffWindow BEGIN: diffWindow missing for ${blockId}. Reconstructing it ...`);
+   const diffWindow  = [];
+   let loopId = blockId;
+   for (let i = 0; i < DIFFICULTY_WINDOW && loopId; i++) {
+      const b = blocks[loopId];
+      diffWindow.push({ timestamp: b.timestamp, cumDifficulty: b.cumDifficulty, });
+      loopId = b.prevId;
+   }
+   diffWindow.reverse();
+   diffWindows[blockId] = diffWindow;
 }
 
 function broadcastBlock(blockId, eventQueue, activeEvent) {
