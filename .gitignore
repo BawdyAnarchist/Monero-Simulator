@@ -5,5 +5,6 @@ config/strategy_manifest.json
 config/difficulty_bootstrap.csv
 data/
 !data/sample_data/
-docs/todo
+docs/todo.md
 node_modules/
+src/error.log

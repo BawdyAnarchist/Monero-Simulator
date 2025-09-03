@@ -1,7 +1,0 @@
-[2025-09-03T14:14:52.305Z] Critical main() error: Error: Invalid or missing environment variable: NETWK_HASH
-    at conductChecks (file:///home/opensource/Monero_sim/src/main.js:84:16)
-    at main (file:///home/opensource/Monero_sim/src/main.js:302:10)
-    at file:///home/opensource/Monero_sim/src/main.js:341:1
-    at ModuleJob.run (node:internal/modules/esm/module_job:370:25)
-    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:665:26)
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:99:5)

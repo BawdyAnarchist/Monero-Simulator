@@ -13,8 +13,7 @@ This codebase implements a discrete-event framework for analyzing miner PoW dyna
 - **Multi Threaded:** Run isolated rounds in parallel
 - **Accurate Difficulty Adjustment:**  Monero's exact algo, bootstrapped with historical data 
 
-A detailed description of the model, configuration parameters, and API for strategies plugins, is in `docs/`.    
-Refer to `src/README.md` for a quick-reference on pools and strategies configuration.
+Refer to `config/README.md` for a quick-reference on pools and strategies configuration. For an API to plug-in a custom miner strategy, see `docs/STRATEGY_API.md`
 
 ### Getting Started
 1. Dependencies
@@ -26,5 +25,5 @@ npm install dotenv d3-random p-limit tinyqueue
 ```
 npm start
 ```
-> *Results are gzip csv, written to the `data/` directory*
+&nbsp;&nbsp;&nbsp;*Results are gzip csv, written to the `data/` directory*
 3. Review `.env` and `config/` for custom configuration   
