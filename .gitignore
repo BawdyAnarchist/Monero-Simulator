@@ -1,0 +1,9 @@
+.env
+*.swp
+config/pools.json
+config/strategy_manifest.json
+config/difficulty_bootstrap.csv
+data/
+!data/sample_data/
+docs/todo
+node_modules/

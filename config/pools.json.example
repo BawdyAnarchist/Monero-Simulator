@@ -1,0 +1,11 @@
+{
+"P0": { "strategy": "HB0", "HPP": 0.31},
+"P1": { "strategy": "HB0", "HPP": 0.22},
+"P2": { "strategy": "HB0", "HPP": 0.17},
+"P3": { "strategy": "HB0", "HPP": 0.12},
+"P4": { "strategy": "HB0", "HPP": 0.07},
+"P5": { "strategy": "HB0", "HPP": 0.05},
+"P6": { "strategy": "HB0", "HPP": 0.03},
+"P7": { "strategy": "HB0", "HPP": 0.02},
+"P8": { "strategy": "HB0", "HPP": 0.01}
+}

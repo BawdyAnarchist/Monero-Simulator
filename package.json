@@ -1,0 +1,31 @@
+{
+  "name": "Monero_Simulator",
+  "version": "1.0.0",
+  "description": "Modular simulation environment for research on selfish mining countermeasures.",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node --max-old-space-size=8092 src/main.js",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint . --fix"
+  },
+  "keywords": [
+    "monero",
+    "simulation",
+    "PoW",
+    "selfish mining"
+  ],
+  "author": "BawdyAnarchist",
+  "license": "MIT",
+  "devDependencies": {
+    "@eslint/js": "^9.26.0",
+    "eslint": "^9.26.0",
+    "globals": "^16.1.0"
+  },
+  "dependencies": {
+    "d3-random": "^3.0.1",
+    "dotenv": "^16.6.1",
+    "p-limit": "^7.1.1",
+    "tinyqueue": "^3.0.0"
+  }
+}

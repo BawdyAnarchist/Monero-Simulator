@@ -1,0 +1,346 @@
+////////////////////////////////////////////
+//  MONERO  POW  SIMULATION  COORDINATOR  // 
+////////////////////////////////////////////
+
+// -----------------------------------------------------------------------------
+// SECTION 1: IMPORTS, CONSTANTS, GLOBALS
+// -----------------------------------------------------------------------------
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { Worker } from 'node:worker_threads';
+import { cpus } from 'node:os';
+import { pipeline } from 'node:stream/promises';
+import { createGzip } from 'node:zlib';
+import pLimit from 'p-limit';
+import {randomLcg, randomNormal } from 'd3-random';
+import './config_init.js';
+
+const __filename  = fileURLToPath(import.meta.url);
+const __dirname   = path.dirname(__filename);
+const PROJ_ROOT   = path.resolve(__dirname, '..');
+
+/* Results files and recording tools */
+let   RESULTS_BLOCKS, RESULTS_SCORES;
+const RESULTS_DIR = path.join(PROJ_ROOT, 'data/');
+const CHUNK_SIZE  = 8 * 1024 *1024;  //8MB chunks
+let   blockStream = null;
+let   scoreStream = null;
+let   blockFields = [];
+let   scoreFields = [];
+const blockBuffer = [];
+const scoreBuffer = [];
+
+/* Initialization and Setup */
+const ERR_LOG   = path.join(__dirname, 'error.log');
+const HISTORY   = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
+const MANIFEST  = JSON.parse(fs.readFileSync(path.join(
+                             PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
+const POOLS     = JSON.parse(fs.readFileSync(path.join(
+                             PROJ_ROOT, 'config/pools.json'), 'utf8'),
+                            (k, v) => (k.startsWith('Comment') ? undefined : v));
+/* Define all .env constants here, so we can check them (not null) */
+const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
+const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
+const THREADS    = Number(process.env.THREADS);
+const BLOCKTIME  = Number(process.env.BLOCKTIME);
+const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
+const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
+const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
+const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
+const NETWORK_HASH = Number(process.env.NETWORK_HASH);
+const FORK_WINDOW = Number(process.env.FORK_WINDOW);
+const FORK_DECAY = Number(process.env.FORK_DECAY);
+const NTP_STDEV  = Number(process.env.NTP_STDEV);
+const PING_AVG   = Number(process.env.PING_AVG);
+const BLK_TX_AVG = Number(process.env.BLK_TX_AVG);
+const SEED       = Number(process.env.SEED) >>> 0;
+const rng        = randomLcg(SEED);
+
+// Troubleshooting stanza. Leave for now in case it's needed later. Shows open processes
+const activeProcessesLog = (() => {
+   const { resourceUsage } = process;
+   console.log(`main() activeHandles:`,  new Date().toLocaleTimeString(), process._getActiveHandles());
+   console.log(`main() activeRequests:`, new Date().toLocaleTimeString(), process._getActiveRequests());
+});
+
+
+// -----------------------------------------------------------------------------
+// SECTION 2: GENERIC HOUSEKEEPING HELPERS
+// -----------------------------------------------------------------------------
+
+async function conductChecks(pools) {
+   // Check for required simulation files
+   if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
+
+   // Check for critical environment variables
+   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'THREADS', 'NETWORK_HASH',
+      'BLOCKTIME', 'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
+      'FORK_WINDOW', 'FORK_DECAY', 'NTP_STDEV', 'PING_AVG', 'BLK_TX_AVG', 'SEED'];
+
+   for (const v of envVars) {
+      if (process.env[v] === undefined || isNaN(parseFloat(process.env[v])))
+         throw new Error(`Invalid or missing environment variable: ${v}`);
+   }
+
+   // Verify pool configurations and total hashpower = 100%
+   let totalHPP = 0;
+   for (const [poolId, poolConfig] of Object.entries(pools)) {
+      if (!poolConfig.strategy || !MANIFEST.find(s => s.id === poolConfig.strategy))
+         throw new Error(`Pool '${poolId}' has invalid strategy: '${poolConfig.strategy}'`);
+      totalHPP += poolConfig.HPP;
+   }
+   if (Math.abs(totalHPP - 1.0) > 1e-3) {
+      throw new Error(`Total pool HPP must sum to 1.0, but is ${totalHPP}`);
+   }
+
+   // Verify all strategy modules and their entry points
+   const strategyChecks = MANIFEST.map(async (strategy) => {
+      const modulePath  = path.resolve(__dirname, strategy.module);
+      if (!fs.existsSync(modulePath))
+         throw new Error(`Module not found for '${strategy.id}': ${modulePath}`);
+      const module = await import(modulePath);
+      if (typeof module[strategy.entryPoint] !== 'function')
+         throw new Error(`EntryPoint '${strategy.entryPoint}' not a function in ${strategy.module}`);
+   });
+   await Promise.all(strategyChecks);
+} 
+
+async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
+/*
+   Results are stored in /data, with a unique prefix (001, 002, ...).
+   This includes the sim results and the env files required for a reproducible run.
+*/
+   const files   = fs.readdirSync(RESULTS_DIR);
+   const numbers = files.map(f => f.match(/^(\d+)_/)).filter(Boolean).map(m => +m[1]);
+   const num     = (numbers.length ? Math.max(...numbers) : 0) + 1;
+   const runId   = String(num).padStart(3, '0');
+
+   /* Copy the verbatim .env, manifest, and pools (with NTP adjustments) to data/results */
+   const poolsOut = JSON.parse(JSON.stringify(POOLS));   // original template
+   for (const id in pools) poolsOut[id].ntpDrift = pools[id].ntpDrift;
+   fs.writeFileSync(
+      path.join(RESULTS_DIR, `${runId}_pools.json`),
+      JSON.stringify(poolsOut, null, 2));
+   fs.copyFileSync(
+      path.resolve(__dirname, '../.env'),
+      path.join(RESULTS_DIR, `${runId}_env.txt`));
+   fs.writeFileSync(
+      path.join(RESULTS_DIR, `${runId}_strategy_manifest.json`),
+      JSON.stringify(MANIFEST, null, 2));
+
+   /* Opens streams for data output */
+   RESULTS_BLOCKS = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
+   RESULTS_SCORES = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
+   blockStream = createGzip();
+   scoreStream = createGzip();
+   blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS, { flags: 'w' }));
+   scoreStream.pipe(fs.createWriteStream(RESULTS_SCORES, { flags: 'w' }));
+   blockStream.on('error', (err) => { console.error('blockStream error', err); });
+   scoreStream.on('error', (err) => { console.error('scoreStream error', err); });
+
+   /* Capture field order based on initializeHistory(). Write the headers, and the history */
+   blockFields = Object.keys(hBlock);
+   scoreFields = Object.keys(hScore);
+   const blocksHeader = ['round', ...blockFields];
+   const scoresHeader = ['round', 'pool', 'blockId', ...scoreFields];
+   blockStream.write(blocksHeader.join(',') + '\n');
+   scoreStream.write(scoresHeader.join(',') + '\n');
+
+   /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
+   const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
+   const historyStream = createGzip();
+   historyStream.pipe(fs.createWriteStream(HISTORY_BLOCKS));
+   historyStream.write(blocksHeader.join(',') + '\n');
+   for (const b of Object.values(blocks)) {
+      historyStream.write(['0', ...blockFields.map(k => b[k])].join(',') + '\n');
+   }
+   historyStream.end();
+}
+
+async function recordResultsToCSV(idx, poolsResults, blocksResults) {
+   const blockRows = Object.values(blocksResults)
+      .map(b => [idx, ...blockFields.map(k => b[k])].join(',')).join('\n');
+   if (blockRows) blockBuffer.push(blockRows);
+   const scoreRows = Object.entries(poolsResults).flatMap(([poolId, poolData]) =>
+      Object.entries(poolData.scores).map(([blockId, score]) =>
+         [idx, poolId, blockId, ...scoreFields.map(k => score[k])].join(','))).join('\n');
+   if (scoreRows) scoreBuffer.push(scoreRows);
+   if (blockBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
+   if (scoreBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
+}
+
+async function writeToBuffer(stream, buffer) {
+   if (!buffer.length) return;
+   const data = buffer.join('\n') + '\n';
+   if (!stream.write(data)) await new Promise(res => stream.once('drain', res));
+   buffer.length = 0;
+}
+
+async function gracefulShutdown() {
+   await writeToBuffer(blockStream, blockBuffer);
+   await writeToBuffer(scoreStream, scoreBuffer);
+   blockStream?.end();
+   scoreStream?.end();
+   await Promise.all([
+      new Promise(res => blockStream.on('finish', res)),
+      new Promise(res => scoreStream.on('finish', res)),
+   ]);
+}
+
+
+// -----------------------------------------------------------------------------
+// SECTION 3: SIM INITIALIZATION
+// -----------------------------------------------------------------------------
+
+function importHistory() {
+/*
+   Populate `blocks` with 735 blocks of history for difficulty adjustment calculation. A
+   stateful rolling `diffWindows` avoids a walkback loop via prevId on every new block. 
+*/
+   const history = fs.readFileSync(HISTORY, 'utf8').trim().split('\n').slice(1).filter(line => line);
+   history.sort((a, b) => +a.split(',')[0] - +b.split(',')[0]);  // Sort to ensure chaintip accuracy
+
+   let blocks     = Object.create(null);
+   let diffWindow = [];
+   let blockId, height, timestamp, difficulty, cumulative_difficulty;
+
+   for (const line of history) {
+      [height, timestamp, difficulty, cumulative_difficulty] = line.split(',');
+      blockId = `${+height}_HH0`;
+      const newBlock = {
+         simClock:      +timestamp,             // "True" Unix date the moment block was found by pool 
+         height:        +height,
+         pool:          "HH0",
+         blockId:        blockId,               // For sim simplicity, blockId is just 'height_pool' 
+         prevId:        `${+height - 1}_HH0`,
+         timestamp:     +timestamp,             // Block header epoch
+         difficulty:     BigInt(difficulty),    // BigInt coz it gets added to cumDifficulty 
+         nxtDifficulty:  null,                  // Difficulty required to mine the next block
+         cumDifficulty:  BigInt(cumulative_difficulty),  // Maintain precision with BigInt
+         broadcast:      true,                  // Tracks whether the pool has broadcast the block yet
+      }
+      blocks[blockId] = newBlock;
+      diffWindow.push({
+         timestamp:     +timestamp,
+         cumDifficulty:  BigInt(cumulative_difficulty)
+      });
+   }  
+   /* Scores history irrelevant except the last historical block (chaintip continuity at sim start) */
+   const hScore = {                                 // "Weakly subjective" pool perspective
+      localTime:     +timestamp,                    // Pool's local Unix date of header arrival
+      diffScore:     blocks[blockId].difficulty,    // Base difficulty with penalties/bonuses applied
+      cumDiffScore:  blocks[blockId].cumDifficulty, // Cumulative scored difficulty
+      isHeaviest:    true,                          // Pools' real-time believe of the canonical chain
+   }
+   let diffWindows      = Object.create(null);
+   diffWindows[blockId] = diffWindow;  
+   if (diffWindow.length > DIFFICULTY_WINDOW + DIFFICULTY_LAG) diffWindow = diffWindow.slice(-735);
+
+   return [blocks, hScore, blockId, diffWindows];    // blockId is the chaintip of the historical blocks
+}
+
+function initializePools(pools, hScore, startTip) {
+/* 
+   Pools need initialized with basic parameters. Historic scores are identical between pools
+   (we lack that data anyways), but we do simulate ntpDrift for the most recent historical block.
+*/
+   const normalNtp = randomNormal.source(rng)(0, NTP_STDEV);  // Build once, use in loop
+   for (const poolKey in pools) {
+      const p            = pools[poolKey];
+      const ntpDrift     = normalNtp();
+      const score        = { ...hScore, localTime: hScore.localTime + ntpDrift };
+      p.id               = poolKey;                 // Enrich with id=Key for simplicity later
+      p.ntpDrift         = ntpDrift;                // Persistent ntp drift
+      p.hashrate         = p.HPP * NETWORK_HASH;    // hashrate based on hashpower percentage
+      p.chaintip         = startTip;                // Last guaranteed historical common ancestor
+      p.scores           = {}
+      p.scores[startTip] = score;                   // Apply score to last historical block
+      p.config = MANIFEST.find(s => s.id === p.strategy).config;  // Save strategy manifest config
+   }
+}
+
+
+// -----------------------------------------------------------------------------
+// SECTION 4: MAIN, CONTROL MANAGEMENT
+// -----------------------------------------------------------------------------
+
+function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth) {
+/*
+   Spawn a worker that runs one, memory isolated simulation round.
+   Returns a promise that resolves with a data object (or rejection/error).
+*/
+   return new Promise((resolve, reject) => {
+      const worker = new Worker(
+         new URL('./sim_core.js', import.meta.url), {
+            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth}
+         }
+      );
+      worker.once('message', (data) => {
+         resolve(data);
+         worker.terminate();
+      });
+      worker.once('error', (err) => {
+         reject(err);
+         worker.terminate();
+      });
+      worker.once('exit', code => {
+         if (code !== 0) reject(new Error(`Worker ${idx} exited with code ${code}`));
+         resolve({ pools: {}, blocks: {} });
+         worker.terminate();
+      });
+   });
+}
+
+async function main() {
+/* 
+   Central coordinator for pluggable/configurable history, pools, and strategies.
+   Sets configs, then manages multi-thread simulation execution and data delivery.
+*/
+   let pools = JSON.parse(JSON.stringify(POOLS));
+   await conductChecks(pools);                 // Check critical files, constants, and functions
+
+   const [blocks, hScore, startTip, diffWindows] = importHistory();
+   initializePools(pools, hScore, startTip);            // Setup ntpDrift, hashrate, and history
+   initializeResultsStorage(blocks, blocks[startTip], hScore, pools); // Depends on pools/blocks initialization
+
+   /* Set thread limit, depth, and prepare the worker call */ 
+   const limit    = pLimit(THREADS || 2);
+   const simDepth = blocks[startTip].simClock + (SIM_DEPTH * 3600);
+   const jobs = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
+      return { idx , promise: limit(() =>
+         runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)) };
+   });
+   console.log('Environment checks good, starting sim rounds ...', new Date().toLocaleTimeString());
+
+   /* Await each job’s completion (order of resolution is not important) */
+   let completedJobs = 0;
+   for (const { idx, promise } of jobs) {
+      const { pools: poolsResults, blocks: blocksResults } = await promise;
+      if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
+      await recordResultsToCSV(idx, poolsResults, blocksResults);
+   }
+
+   console.log('Closing streams ...');
+   await gracefulShutdown();
+   console.log('Sim complete. Exiting at:', new Date().toLocaleTimeString());
+}
+
+process.once('SIGINT', async () => {   // Callbacks for signal exits
+   console.log('\nSIGINT/SIGTERM detected. Abandoning simulation.');
+   await gracefulShutdown();
+   process.exit(0);
+});
+process.once('SIGTERM', async () => {
+   console.log('\nSIGINT/SIGTERM detected. Abandoning simulation.');
+   await gracefulShutdown();
+   process.exit(0);
+});
+
+main().catch(err => {
+   console.error('\nA critical error occurred during execution:', err);
+   const errorMsg = `[${new Date().toISOString()}] Critical main() error: ${err.stack || err}\n`;
+   fs.appendFileSync(ERR_LOG, errorMsg);
+   process.exit(1);
+});

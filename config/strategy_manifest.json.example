@@ -1,0 +1,43 @@
+[
+  {
+    "id": "HB0",
+    "name": "Honest_Baseline",
+    "description": "Monero's baseline existing PoW with no countermeasures",
+    "module": "./plugins/honest_scoring.js",
+    "entryPoint": "invokeStrategyH",
+    "config": { "scoringFunctions": [] }
+  },
+  {
+    "id": "HS1",
+    "name": "Honest_Scoring",
+    "description": "Apply scoring adjustments to the difficulty of each block",
+    "module": "./plugins/honest_scoring.js",
+    "entryPoint": "invokeStrategyH",
+    "config": { 
+      "scoringFunctions": ["calculateDepthPenaltyTime", "calculateUncleBonusBlocks", "calculateSkewPenalty"],
+      "constants": {
+         "depthPenaltyTime":   { "k": 0.0012, "L": 0.90 },
+         "depthPenaltyBlocks": { "dummy": 0.1 },
+         "uncleBonusTime":     { "dummy": 0.1 },
+         "uncleBonusBlocks":   { "dummy": 0.1 },
+         "skewPenalty":        { "dummy": 0.1 }
+      }
+    }
+  },
+  {
+    "id": "SR0",
+    "name": "Selfish_Reorg",
+    "description": "Selfish pool withholds all blocks until the moment of reorg",
+    "module": "./plugins/silent_reorg.js",
+    "entryPoint": "invokeStrategySR",
+    "config": { }
+  },
+  {
+    "id": "SS0",
+    "name": "Selfish_Sniper",
+    "description": "Newly published honest blocks are 'sniped' immediately by the selfish pool",
+    "module": "./plugins/selfish_sniper.js",
+    "entryPoint": "invokeStrategySS",
+    "config": {  }
+  }
+]
