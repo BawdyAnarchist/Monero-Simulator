@@ -48,7 +48,7 @@ const debug = (() => {
 
 
 // -----------------------------------------------------------------------------
-// SECTION 2: ONE TIME INTIALIZATION FUNCTIONS 
+// SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
 // -----------------------------------------------------------------------------
 
 function makeNoiseFunctions() {
@@ -162,13 +162,14 @@ function calculateNextDifficulty(blockId) {
    debug(`calculateNextDifficulty START: blockId: ${blockId}`);
 
    if (!diffWindows[blockId]) reconstructDiffWindow(blockId);     // Safety for edge cases
+
    const diffWindow = [...diffWindows[blockId]]
-      .slice(0, DIFFICULTY_WINDOW)
+      .slice(0, -DIFFICULTY_LAG).slice(-DIFFICULTY_WINDOW)  // Discard recent, ensure 720 length
       .sort((a, b) => a.timestamp - b.timestamp);
    const timestamps              = diffWindow.map(h => h.timestamp);
    const cumulative_difficulties = diffWindow.map(h => h.cumDifficulty);
    const length = timestamps.length;
-   if (length <= 1) return 1n;                         // Is genesis block. Set to `1n` (BigInt) 
+   if (length <= 1) return 1n;                              // Genesis block. Set to `1n` (BigInt)
 
    /* Determine the cut range for outlier removal */
    let cut_begin, cut_end;
@@ -199,7 +200,7 @@ function reconstructDiffWindow(blockId) {
    debug(`reconstructDiffWindow BEGIN: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
    let loopId = blockId;
-   for (let i = 0; i < DIFFICULTY_WINDOW && loopId; i++) {
+   for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
       const b = blocks[loopId];
       diffWindow.push({ timestamp: b.timestamp, cumDifficulty: b.cumDifficulty, });
       loopId = b.prevId;
@@ -253,7 +254,7 @@ function resourceManagement(eventQueue) {
    for (const k in diffWindows) if (!keepWindows.has(k)) delete diffWindows[k];
 
    /* Prevent popped events from lingering and consuming memory */
-   if (eventQueue.data.length = eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
+   if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
 }
 
 function integrateStrategyResults(p, eventQueue, activeEvent, results) {
@@ -298,8 +299,15 @@ async function runSimCore() {
    /* Historical chaintip needs nxtDifficulty for first event. Calculate it now */
    blocks[startTip].nxtDifficulty = calculateNextDifficulty(startTip);
 
-   /* Create a binary heap for time ordering (fast search), then populate queue with first events */
-   const eventQueue = new TinyQueue([], (a, b) => a.simClock - b.simClock);
+   /* Binary heap time ordering (fast search). 5 checks for ultimate tie breaking resolution */ 
+   const eventQueue = new TinyQueue([], (a, b) => {
+   if (a.simClock !== b.simClock) return a.simClock - b.simClock;
+   if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
+   if (a.action   !== b.action)   return a.action.localeCompare(b.action);
+   if (a.chaintip !== b.chaintip) return a.chaintip.localeCompare(b.chaintip);
+   if (a.newTip   !== b.newTip)   return a.newTip.localeCompare(b.newTip);
+   });
+
    for (const p of Object.values(pools)) simulateBlockTime(eventQueue, p, blocks[startTip].simClock);
 
    /* Event queue engine. Continuous event creation and execution until depth is reached */

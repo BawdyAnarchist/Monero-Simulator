@@ -202,8 +202,10 @@ function importHistory() {
    Populate `blocks` with 735 blocks of history for difficulty adjustment calculation. A
    stateful rolling `diffWindows` avoids a walkback loop via prevId on every new block. 
 */
-   const history = fs.readFileSync(HISTORY, 'utf8').trim().split('\n').slice(1).filter(line => line);
-   history.sort((a, b) => +a.split(',')[0] - +b.split(',')[0]);  // Sort to ensure chaintip accuracy
+   const history = fs.readFileSync(HISTORY, 'utf8').split(/\r?\n/).filter(l => l.trim()).slice(1);
+   history.sort((a, b) => +a.split(',')[0] - +b.split(',')[0]);
+   if (history.length < DIFFICULTY_WINDOW + DIFFICULTY_LAG) throw new Error(
+      `${HISTORY} is too short. Needs ${DIFFICULTY_WINDOW + DIFFICULTY_LAG} blocks for bootstrap`);
 
    let blocks     = Object.create(null);
    let diffWindow = [];
@@ -239,7 +241,8 @@ function importHistory() {
    }
    let diffWindows      = Object.create(null);
    diffWindows[blockId] = diffWindow;  
-   if (diffWindow.length > DIFFICULTY_WINDOW + DIFFICULTY_LAG) diffWindow = diffWindow.slice(-735);
+   if (diffWindow.length > DIFFICULTY_WINDOW + DIFFICULTY_LAG)
+      diffWindow = diffWindow.slice(-(DIFFICULTY_WINDOW + DIFFICULTY_LAG));
 
    return [blocks, hScore, blockId, diffWindows];    // blockId is the chaintip of the historical blocks
 }
