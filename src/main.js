@@ -263,7 +263,7 @@ function initializePools(pools, hScore, startTip) {
       p.chaintip         = startTip;                // Last guaranteed historical common ancestor
       p.scores           = {}
       p.scores[startTip] = score;                   // Apply score to last historical block
-      p.awaiting         = new Set();               // Missing block req'd from the network 
+      p.request          = new Set();               // Missing blocks requested from the network 
       p.config = MANIFEST.find(s => s.id === p.strategy).config;  // Save strategy manifest config
    }
 }
