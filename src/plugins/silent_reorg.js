@@ -3,4 +3,5 @@
 */
 
 export function invokeStrategySR(activeEvent) {
+;
 }

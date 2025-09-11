@@ -22,23 +22,26 @@ const __dirname   = path.dirname(__filename);
 const { idx, pools, blocks, startTip, diffWindows, simDepth } = workerData;
 
 /* Difficulty adjustment constants */
-const BLOCKTIME            = Number(process.env.BLOCKTIME);
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW    = Number(process.env.DIFFICULTY_WINDOW);
 const DIFFICULTY_CUT       = Number(process.env.DIFFICULTY_CUT);
 const DIFFICULTY_LAG       = Number(process.env.DIFFICULTY_LAG);
 
 /* Critical simulation parameters */
-const MANIFEST    = JSON.parse(fs.readFileSync(
-                    path.join(__dirname,'../config/strategy_manifest.json'),'utf8'));
-const FORK_WINDOW = Number(process.env.FORK_WINDOW);      // Max time window of fork probability
-const FORK_DECAY  = Number(process.env.FORK_DECAY);       // Slope of fork-probability decay 
-const NTP_STDEV   = Number(process.env.NTP_STDEV);        // Standard deviation of pool NTP error 
-const PING_AVG    = Number(process.env.PING_AVG);         // Avg 1-way ping-delay, pool-to-hashers 
-const BLK_TX_AVG  = Number(process.env.BLK_TX_AVG);       // Avg transmission time of full block data 
-const SEED        = Number(process.env.SEED) + idx >>> 0; // Reproducible seed, cast as uint32
-const rng         = randomLcg(SEED);                      // Quality, reproducible randomness
-let   simNoise    = {};                                   // Will hold probability dist functions 
+const MANIFEST   = JSON.parse(fs.readFileSync(
+                   path.join(__dirname,'../config/strategy_manifest.json'),'utf8'));
+const PING       = Number(process.env.PING);             // Avg network ping (ms)
+const MBPS       = Number(process.env.MBPS);             // Avg network bandwidth (Mbps)
+const CV         = Number(process.env.CV);               // Coefficient of variance
+const BLOCK_SIZE = Number(process.env.BLOCK_SIZE);       // (kb)
+const SEED       = Number(process.env.SEED) + idx >>> 0; // Reproducible seed, cast as uint32
+const rng        = randomLcg(SEED);                      // Quality, reproducible randomness
+let   simNoise   = {};                                   // Will hold probability dist functions
+
+
+// -----------------------------------------------------------------------------
+// SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
+// -----------------------------------------------------------------------------
 
 /* Debug helper */
 const debug = (() => {
@@ -47,29 +50,42 @@ const debug = (() => {
 })();
 
 
-// -----------------------------------------------------------------------------
-// SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
-// -----------------------------------------------------------------------------
-
 function makeNoiseFunctions() {
-/* Prepare random distribution functions and their constants once, in advance */
+/*
+   Prepare random distribution functions and their constants once, in advance. We model 2
+   distinct network profiles. Hasher<-->Pool is assumed to be about 2x worse than pool<-->pool.
+   Even under normal network, tail-end ping-time spikes are common. They're part of the model.
+*/
+   /* LogNormal implementation for ping and bandwidth. P2H modeled as 2x worse than P2P */
+   const sigma   = Math.sqrt(Math.log(1 + CV*CV));                // pool-pool (P2P)
+   const pingMu  = Math.log(PING / 2e3) - 0.5 * sigma * sigma;    // One-way, and conv ms -> sec
+   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // pool-hasher (P2H)
+   const pingMu2 = Math.log(PING / 1e3) - 0.5 * sigma2 * sigma2;  // One-way, and conv ms -> sec
+   const blockTxTime = BLOCK_SIZE / (MBPS * 1024 / 8)             // Convert Mbps to KB/sec
+   const bwMu    = Math.log(blockTxTime) - 0.5 * sigma * sigma;
 
-   /* LogNormal implementation for ping and bandwidth. Converts simplified mean/stdev to mu/sigma */
-   const cv       = 0.5;                                // Hard coded CV
-   const sigma2   = Math.log(1 + cv*cv);
-   const sigma    = Math.sqrt(sigma2);
-   const pingMean = PING_AVG / 1e3;                     // ms -> sec
-   const pingMu   = Math.log(pingMean) - 0.5 * sigma2;  // Packet time (one way, not round trip)
-   const bwMean   = BLK_TX_AVG / 1e3;                   // ms -> sec
-   const bwMu     = Math.log(bwMean)   - 0.5 * sigma2;  // Time to send full block ("bandwidth")
-   const makeLogNormal = randomLogNormal.source(rng);   // Declare once, more efficient 
+   /* Ping spike model: Rare additive delays to mimic burstiness. Scale by PING and CV */
+   const pSpikeP2P = 0.01 * (1 + CV);
+   const pSpikeP2H = 0.03 * (1 + CV);
+   const spBase    = PING / 2e3;
+   const spA1      = 0.10 * spBase, spB1 = 0.50 * spBase;         // P2P: +10–50% of OWD
+   const spA2      = 0.30 * spBase, spB2 = 1.20 * spBase;         // P2H: +30–120% of OWD
 
-  /* blockTime, 1-way ping, bandwidth (tx time to send block), fork probability on overlap */
+   const logNormal = randomLogNormal.source(rng);  // Create generator once (more efficient)
+
+   /* Ping was used in .env for familiarity, but the sim uses One-Way-Delay (owdP2P, owdP2H) */
+   const baseP2P = logNormal(pingMu,  sigma);
+   const baseP2H = logNormal(pingMu2, sigma2);
+   const owdP2P  = () => rng() < pSpikeP2P
+      ? baseP2P() + (spA1 + (spB1 - spA1) * rng()) : baseP2P()
+   const owdP2H  = () => rng() < pSpikeP2H
+      ? baseP2H() + (spA2 + (spB2 - spA2) * rng()) : baseP2H()
+
    return {
-      block : randomExponential.source(rng),
-      ping  : makeLogNormal(pingMu, sigma),
-      bw    : makeLogNormal(bwMu, sigma),
-      fork  : (dt) => dt < FORK_WINDOW && rng() < Math.exp(-FORK_DECAY * dt / FORK_WINDOW)
+      owdP2P:    baseP2P,                        // One-Way-Delay, Pool-to-Hasher
+      owdP2H:    baseP2H,                        // One-Way-Delay, Pool-to-Hasher
+      transTime: logNormal(bwMu, sigma),         // Time to send block, not including OWD
+      blockTime: randomExponential.source(rng),
    }
 }
 
@@ -87,69 +103,118 @@ async function makeStrategiesFunctions() {
    return strategies;
 }
 
+
 // -----------------------------------------------------------------------------
-// SECTION 3: CORE BLOCKCHAIN LOGIC
+// SECTION 3: HELPERS AND HOUSEKEEPING
+// -----------------------------------------------------------------------------
+
+function reconstructDiffWindow(blockId) {
+   debug(`reconstructDiffWindow BEGIN: diffWindow missing for ${blockId}. Reconstructing it ...`);
+   const diffWindow  = [];
+   let loopId = blockId;
+   for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
+      const b = blocks[loopId];
+      diffWindow.push({ timestamp: b.timestamp, cumDifficulty: b.cumDifficulty, });
+      loopId = b.prevId;
+   }
+   diffWindow.reverse();
+   diffWindows[blockId] = diffWindow;
+}
+
+function resourceManagement(eventQueue) {
+   /* Prune unused diffWindows to keep memory usage down */
+   const keepWindows = new Set();
+   for (const p of Object.values(pools)) {
+      keepWindows.add(p.chaintip);
+      const prev = blocks[p.chaintip]?.prevId;
+      if (prev) keepWindows.add(prev);
+   }
+   for (const k in diffWindows) if (!keepWindows.has(k)) delete diffWindows[k];
+
+   /* Prevent popped events from lingering and consuming memory */
+   if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
+}
+
+function sendDataToMain() {
+/* Console messaging, trim historical blocks, and send data objects back to main.js  */
+   const { total_heap_size, used_heap_size } = v8.getHeapStatistics();
+      console.log(`Round ${idx.toString().padStart(3, '0')} completed with ` +
+         `heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB, ${new Date().toLocaleTimeString()}`);
+
+   const filteredBlocks = Object.fromEntries(Object.entries(blocks)
+      .filter(([, b]) => b.height > blocks[startTip].height ));
+   parentPort.postMessage({ pools: pools, blocks: filteredBlocks });
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 4: CORE BLOCKCHAIN LOGIC
 // -----------------------------------------------------------------------------
 
 function simulateBlockTime(eventQueue, p, simClock) {
-/*
-   Block times are simulated whenever a pool changes chaintip.
+/* Simulated a new blockTime, whenever a pool changes chaintip.
 */
    const nxtDifficulty = blocks[p.chaintip].nxtDifficulty;
    const lambda        = p.hashrate / Number(nxtDifficulty);  // Downgrade from BigInt
-   const timeToFind    = simNoise.block(lambda)();            // monotonic seconds
+   const timeToFind    = simNoise.blockTime(lambda)();
 
-   /* blockTimes are called at the simClock moment of RECV or CREATE. No ntp adjustment needed here */ 
-   simClock += timeToFind;
+   /* Hashers can only start mining the new template after network latency */
    eventQueue.push({
-      simClock: simClock,
+      simClock: simClock + simNoise.owdP2H() + timeToFind,
       poolId:   p.id,
-      action:  "CREATE_BLOCK",
-      chaintip: p.chaintip,   // This is the old chaintip blockId that will be extended
-      newTip:   null,         // Save lookup/calc cost until event is verified sim-"real"
+      action:  "HASHER_FIND",
+      chaintip: p.chaintip,  // This is the old chaintip blockId that will be extended
+      newIds:   null,        // No newId until the event is verified as "sim"-real
    });
-   debug(`simulateBlockTime END: clock: ${simClock}, pId: ${p.id}, TTF: ${timeToFind}, tip: ${p.chaintip}`);
+   debug(`simulateBlockTime END: clock: ${simClock}, TTF: ${timeToFind}, pId: ${p.id}, tip: ${p.chaintip}`);
+}
+
+function hasherFindsBlock(p, eventQueue, activeEvent) {
+/*
+   We model the exact network/latency relationships that can cause a fork.
+   When a pool switches chaintip, there's a window based on pool-to-hasher 1-way
+   ping, where the hasher solves the old block before receiving the new template.
+*/
+   /* The event chaintip must be relevant to the state of the pool (not stale) */
+   if (activeEvent.chaintip !== p.chaintip) {                          // Might be stale
+      if (activeEvent.chaintip !== blocks[p.chaintip].prevId) return;  // Definitely stale
+
+      /* If hasher would've found the (hypothetical block after template arrival, return */
+      const hasherRecvTime = p.scores[p.chaintip].localTime - p.ntpDrift + simNoise.owdP2H();
+      if (activeEvent.simClock > hasherRecvTime) return;
+   }
+
+   /* The block is valid from the hasher's perspective. Send to pool */
+   activeEvent.simClock += simNoise.owdP2H();  // Add network latency to future event
+   activeEvent.action    = "RECV_OWN";
+   eventQueue.push(activeEvent);
+
+   debug(`findBlock END: clock: ${activeEvent.simClock}, pId: ${p.id}, tip: ${p.chaintip}`);
 }
 
 function generateBlock(p, activeEvent) {
-/*
-   Any updates to the pool's chaintip, queues a future generateBlock event. However, the pool
-   might've already abandoned their mining efforts on the activeEvent chaintip. This can be 
-   identified by comparing the pool's current chaintip (and/or prevId) against the activeEvent.
-*/
-   const localTime = activeEvent.simClock + p.ntpDrift;  // Simulated ntpDrift for new event
-   if (activeEvent.chaintip !== p.chaintip) {       // Chaintip mismatch - likely a stale event
-      const prevId = blocks[p.chaintip].prevId;
-      if (activeEvent.chaintip !== prevId) return;  // Discard event if not shared 1-block ancestor
-      const df = localTime - p.scores[p.chaintip].localTime; 
-      if (!simNoise.fork(df)) return false;         // Discard event if fork probability fails
-   }
-   /* CREATE is valid. Create a new block and score for the pool */
-   const b          =  blocks[activeEvent.chaintip];
-   const newBlockId = `${b.height + 1}_${activeEvent.poolId}`;
+   /* The pool could've received a competing block before the hasher's solution arrived */
+   if (activeEvent.chaintip !== p.chaintip)                     // Might be stale
+      if (activeEvent.chaintip !== blocks[p.chaintip].prevId)   // Definitely stale
+         return false;
 
+   /* RECV_OWN is valid. Create a new block and score for the pool */
+   const b          =  blocks[activeEvent.chaintip];            // block being extended
+   const newBlockId = `${b.height + 1}_${activeEvent.poolId}`;
    const newBlock = {
       simClock:       activeEvent.simClock,
       height:         b.height + 1,
       pool:           activeEvent.poolId,
       blockId:        newBlockId, 
       prevId:         b.blockId,
-      timestamp:      null,                     // Defer, as strategies might manipulate timestamp
+      timestamp:      null,                  // Defer, as strategies might manipulate timestamp
       difficulty:     b.nxtDifficulty,
       cumDifficulty:  b.nxtDifficulty + b.cumDifficulty,
-      nxtDifficulty:  null,                     // Needs a timestamp. Defer till after strategy
-      broadcast:      null,                     // Need pool strategy before deciding to broadcast 
-   }
-   const newScore = {
-      localTime:      Math.floor(localTime),
-      diffScore:      b.nxtDifficulty,
-      cumDiffScore:   b.nxtDifficulty + p.scores[b.blockId].cumDiffScore,
-      isHeaviest:     true,
+      nxtDifficulty:  null,                  // Needs a timestamp. Defer till after strategy
+      broadcast:      null,                  // Need pool strategy before deciding to broadcast
    }
    blocks[newBlockId]   = newBlock;
-   p.scores[newBlockId] = newScore;
-   p.chaintip           = newBlockId;
-   activeEvent.newTip   = newBlockId;
+   activeEvent.newIds   = [newBlockId];      // API requires an array
+
    debug(`generateBlock END: clock: ${activeEvent.simClock}, pId: ${p.id}, newId: ${newBlockId}`);
    return true;
 }
@@ -159,7 +224,7 @@ function calculateNextDifficulty(blockId) {
    Full block difficulty adjustment. diffWindows has the timestamps and cumDifficulty of each
    contender chaintip. We extract and sort those arrays to look like difficulty.cpp.
 */
-   debug(`calculateNextDifficulty START: blockId: ${blockId}`);
+   debug(`calculateNextDifficulty START: blockId: ${blockId}, diffWindLeng: ${diffWindows[blockId].length}`);
 
    if (!diffWindows[blockId]) reconstructDiffWindow(blockId);     // Safety for edge cases
 
@@ -196,73 +261,43 @@ function calculateNextDifficulty(blockId) {
    return new_difficulty <= 0n ? 1n : new_difficulty;
 }
 
-function reconstructDiffWindow(blockId) {
-   debug(`reconstructDiffWindow BEGIN: diffWindow missing for ${blockId}. Reconstructing it ...`);
-   const diffWindow  = [];
-   let loopId = blockId;
-   for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
-      const b = blocks[loopId];
-      diffWindow.push({ timestamp: b.timestamp, cumDifficulty: b.cumDifficulty, });
-      loopId = b.prevId;
-   }
-   diffWindow.reverse();
-   diffWindows[blockId] = diffWindow;
-}
-
-function broadcastBlock(blockId, eventQueue, activeEvent) {
+function broadcastBlock(newIds, eventQueue, activeEvent) {
 /*
    Simulate network delays, then create a new RECV event for each pool. Only single blocks are
    broadcast. Strategy functions determine if they need to catch up on history behind that block. 
 */
-   blocks[blockId].broadcast = true;
+   /* Guarantee ascending order by height of newIds for new events */
+   newIds = newIds.toSorted((a, b) => +a - +b); // `+a` (unary plus) parse int until first non-digit
+
    for (const p of Object.values(pools)) {
-      if (p.id === activeEvent.poolId) continue;      // Skip pool who found the block
+      if (p.id === activeEvent.poolId) continue;             // Skip pool who found the block
       eventQueue.push({
-         simClock:  activeEvent.simClock + simNoise.ping() + simNoise.bw(),
+         simClock:  activeEvent.simClock + simNoise.owdP2P(),  // Assume fluffy, no BW penalty
          poolId:    p.id,
-         action:   "RECV_BLOCK",
+         action:   "RECV_OTHER",
          chaintip:  null, 
-         newTip:    blockId,
+         newIds:    newIds,
       });
-   debug(`broadcastBlock LOOPend: clock: ${activeEvent.simClock}, pId: ${p.id}, block: ${blockId}`);
    }
+   for (const id of newIds) blocks[id].broadcast = true;   // Set the block as broadcast
+   debug(`broadcastBlock END: clock: ${activeEvent.simClock}, pId: ${activeEvent.poolId}, block: ${newIds}`);
 }
 
 // -----------------------------------------------------------------------------
-// SECTION 4: FLOW AND SIM ENGINE
+// SECTION 5: FLOW AND SIM ENGINE
 // -----------------------------------------------------------------------------
-
-function sendDataToMain() {
-/* Console messaging, trim historical blocks, and send data objects back to main.js  */ 
-   const { total_heap_size, used_heap_size } = v8.getHeapStatistics();
-      console.log(`Round ${idx.toString().padStart(3, '0')} completed with ` +
-         `heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB, ${new Date().toLocaleTimeString()}`);
-
-   const filteredBlocks = Object.fromEntries(Object.entries(blocks)
-      .filter(([, b]) => b.height > blocks[startTip].height ));
-   parentPort.postMessage({ pools: pools, blocks: filteredBlocks });
-}
-
-function resourceManagement(eventQueue) {
-   /* Prune unused diffWindows to keep memory usage down */
-   const keepWindows = new Set();
-   for (const p of Object.values(pools)) {
-      keepWindows.add(p.chaintip);
-      const prev = blocks[p.chaintip]?.prevId;
-      if (prev) keepWindows.add(prev);
-   }
-   for (const k in diffWindows) if (!keepWindows.has(k)) delete diffWindows[k];
-
-   /* Prevent popped events from lingering and consuming memory */
-   if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
-}
 
 function integrateStrategyResults(p, eventQueue, activeEvent, results) {
 /*
    Had to defer critical state changes / events until receiving results from the plugin strategy.
    Integrate return contract: { chaintip, timestamp, scores, broadcastId }, into the current state. 
+   * Correct API handling by strategies is crucial. No other way to achieve strategy modularity.*
 */
    debug(`integrateStrategy BEGIN: clock: ${activeEvent.simClock}, pId: ${p.id}, tip: ${results.chaintip}`);
+
+   /* Remove received blocks (newIds set) from the pool's request list */
+   for (const id of activeEvent.newIds || []) p.requestIds.delete(id);
+
    if (results.timestamp) {
       const oldTip = activeEvent.chaintip;
       const newTip = results.chaintip; 
@@ -271,19 +306,50 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
       bNew.timestamp = results.timestamp;
 
       /* Difficulty window wasnt updated earlier because sorting with a null timestamp, fails */
-      if (!diffWindows[oldTip]) reconstructDiffWindow(oldTip);  // Edge cases see needed window deleted
+      if (!diffWindows[oldTip]) reconstructDiffWindow(oldTip);  // Edge cases can delete needed window
       diffWindows[newTip] = diffWindows[oldTip].slice(1).concat({
          timestamp:     results.timestamp,
          cumDifficulty: bNew.cumDifficulty
       });
       bNew.nxtDifficulty = calculateNextDifficulty(newTip);
    }
-   if (results.scores) Object.assign(p.scores, results.scores);
-   if (results.chaintip === activeEvent.newTip) {
-      p.chaintip = results.chaintip;
-      simulateBlockTime(eventQueue, p, activeEvent.simClock);   // New chaintip means switch to new block 
+
+   /* Add the new scores to the miner's database, while tracking unscored blocks for sim efficiency */
+   if (results.scores) {
+      Object.assign(p.scores, results.scores);
+      for (const id in results.scores) {
+         if (results.scores[id].cumDiffScore === null) p.unscored.set(id, blocks[id].height);
+         else p.unscored.delete(id);
+      }
    }
-   if (results.broadcastId) broadcastBlock(results.broadcastId, eventQueue, activeEvent);
+
+   /* Chaintip switch requires a new blockTime */
+   if (p.chaintip !== results.chaintip) {
+      p.chaintip = results.chaintip;
+      simulateBlockTime(eventQueue, p, activeEvent.simClock);
+   }
+
+   /* Maintains realism for out-of-order blocks, and partition healing */
+   if (results.requestIds) {
+      let requestIds = new Set();
+      for (const id of results.requestIds) {  // Prevent duplicate future events/requests
+         if (!p.requestIds.has(id)) {
+            p.requestIds.add(id);
+            requestIds.add(id);
+         }
+      }
+      if (requestIds.size > 0) {  // Use heuristic - No fluffy for missing blocks. It's a negligible
+         eventQueue.push({        // factor for fast a network, but critical for a degraded network.
+            simClock:  activeEvent.simClock + 2*simNoise.owdP2P() + simNoise.transTime()*requestIds.size,
+            poolId:    p.id,
+            action:   "RECV_OTHER",
+            chaintip:  null,
+            newIds:    [...requestIds].toSorted((a, b) => +a - +b),  // Guarantee order of newIds
+         });
+      }
+   }
+
+   if (results.broadcastIds?.length > 0) broadcastBlock(results.broadcastIds, eventQueue, activeEvent);
    debug(`integrateStrategy END: clock: ${activeEvent.simClock}`);
 }
 
@@ -294,18 +360,22 @@ async function runSimCore() {
 */ 
    console.log(`Starting round: ${idx.toString().padStart(3, '0')} ...`); 
    simNoise = makeNoiseFunctions();        // Probability distribution functions for sim realism
+
    const strategies = await makeStrategiesFunctions();  // All strategies functions needed later 
 
    /* Historical chaintip needs nxtDifficulty for first event. Calculate it now */
    blocks[startTip].nxtDifficulty = calculateNextDifficulty(startTip);
 
-   /* Binary heap time ordering (fast search). 5 checks for ultimate tie breaking resolution */ 
+   /* Binary heap time ordering (fast search). 5 checks for ultimate tie breaking resolution */
    const eventQueue = new TinyQueue([], (a, b) => {
-   if (a.simClock !== b.simClock) return a.simClock - b.simClock;
-   if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
-   if (a.action   !== b.action)   return a.action.localeCompare(b.action);
-   if (a.chaintip !== b.chaintip) return a.chaintip.localeCompare(b.chaintip);
-   if (a.newTip   !== b.newTip)   return a.newTip.localeCompare(b.newTip);
+      if (a.simClock !== b.simClock) return a.simClock - b.simClock;
+      if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
+      if (a.action   !== b.action)   return a.action.localeCompare(b.action);
+      if (a.chaintip !== b.chaintip) return +a.chaintip - +b.chaintip;
+      const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : undefined;
+      const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : undefined;
+      if (aNewId !== bNewId) return (+aNewId || 0) - (+bNewId || 0);
+      return 0;
    });
 
    for (const p of Object.values(pools)) simulateBlockTime(eventQueue, p, blocks[startTip].simClock);
@@ -315,11 +385,18 @@ async function runSimCore() {
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       debug(`runSimCORE LOOPstart: activeEvent`, activeEvent);
       if (activeEvent.simClock > simDepth) break;
+
       const p = pools[activeEvent.poolId];
 
-      if (activeEvent.action === 'CREATE_BLOCK' && !generateBlock(p, activeEvent)) continue;
+      /* The moment a hasher finds a block */
+      if (activeEvent.action === 'HASHER_FIND') {
+         hasherFindsBlock(p, eventQueue, activeEvent)
+         continue;
+      }
+      /* The moment a pool receives block solution from one of its hashers */
+      if (activeEvent.action === 'RECV_OWN' && !generateBlock(p, activeEvent)) continue;
 
-      /* Strategy function must handle both CREATE/RECV. The line below is a function call */
+      /* Strategy function handles both RECV_OWN/RECV_OTHER. The line below is a function call */
       const strategyResults = strategies[p.strategy](activeEvent, p, blocks);
 
       /* Contract parameters returned from strategy function must be integrated into sim state */

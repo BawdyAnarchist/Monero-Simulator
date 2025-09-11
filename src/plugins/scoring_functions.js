@@ -10,21 +10,21 @@ export function calcDepthPenalty_T() {
 //   const depthPenalty   = DP_L*(1 - Math.exp(DP_K * monoDiff));
 //   block.blockScore.diffScore   = block.difficulty * (1 - depthPenalty);
 //   block.cumDiffScore  += block.;
-return 0
+return;
 }
 
 export function calcDepthPenalty_B() {
-return 0
+return;
 }
 
 export function calcUncleBonus_T() {
-return 0
+return;
 }
 
 export function calcUncleBonus_B() {
-return 0
+return;
 }
 
 export function calcSkewPenalty_T() {
-return 0
+return;
 }

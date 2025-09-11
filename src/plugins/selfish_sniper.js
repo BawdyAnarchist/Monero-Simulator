@@ -5,4 +5,5 @@
 */
 
 export function invokeStrategySS(activeEvent) {
+return;
 }

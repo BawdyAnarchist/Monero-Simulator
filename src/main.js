@@ -35,18 +35,17 @@ const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
 const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
 const THREADS    = Number(process.env.THREADS);
 
-const BLOCKTIME  = Number(process.env.BLOCKTIME);
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
 const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
 const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
 const NETWORK_HASH = Number(process.env.NETWORK_HASH);
 
-const FORK_WINDOW = Number(process.env.FORK_WINDOW);
-const FORK_DECAY = Number(process.env.FORK_DECAY);
 const NTP_STDEV  = Number(process.env.NTP_STDEV);
-const PING_AVG   = Number(process.env.PING_AVG);
-const BLK_TX_AVG = Number(process.env.BLK_TX_AVG);
+const PING       = Number(process.env.PING);
+const MBPS       = Number(process.env.MBPS);
+const CV         = Number(process.env.CV);
+const BLOCK_SIZE = Number(process.env.BLOCK_SIZE);
 const SEED       = Number(process.env.SEED) >>> 0;
 const rng        = randomLcg(SEED);
 
@@ -77,10 +76,10 @@ async function conductChecks(pools) {
    // Check for required simulation files
    if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
 
-   // Check for critical environment variables
+   // Check for presence of critical environment variables
    const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'THREADS', 'NETWORK_HASH',
-      'BLOCKTIME', 'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
-      'FORK_WINDOW', 'FORK_DECAY', 'NTP_STDEV', 'PING_AVG', 'BLK_TX_AVG', 'SEED'];
+      'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
+      'NTP_STDEV', 'PING', 'MBPS', 'CV', 'BLOCK_SIZE', 'SEED'];
 
    for (const v of envVars) {
       if (process.env[v] === undefined || isNaN(parseFloat(process.env[v])))
@@ -168,7 +167,8 @@ async function recordResultsToCSV(idx, poolsResults, blocksResults) {
    if (blockRows) blockBuffer.push(blockRows);
    const scoreRows = Object.entries(poolsResults).flatMap(([poolId, poolData]) =>
       Object.entries(poolData.scores).map(([blockId, score]) =>
-         [idx, poolId, blockId, ...scoreFields.map(k => score[k])].join(','))).join('\n');
+         [idx, poolId, blockId, ...scoreFields.map(k => k === 'simClock'
+            ? score[k].toFixed(7) : score[k])].join(','))).join('\n');
    if (scoreRows) scoreBuffer.push(scoreRows);
    if (blockBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
    if (scoreBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
@@ -234,10 +234,12 @@ function importHistory() {
    }  
    /* Scores history irrelevant except the last historical block (chaintip continuity at sim start) */
    const hScore = {                                 // "Weakly subjective" pool perspective
+      simClock:      +timestamp,                    // For sim inspection/auditing purposes
       localTime:     +timestamp,                    // Pool's local Unix date of header arrival
       diffScore:     blocks[blockId].difficulty,    // Base difficulty with penalties/bonuses applied
       cumDiffScore:  blocks[blockId].cumDifficulty, // Cumulative scored difficulty
-      isHeaviest:    true,                          // Pools' real-time believe of the canonical chain
+      chaintip:      blockId,                       // Pools' real-time believe of the canonical chain
+      isHeadPath:    true,                          // Pools' real-time believe of the canonical chain
    }
    let diffWindows      = Object.create(null);
    diffWindows[blockId] = diffWindow;  
@@ -263,7 +265,8 @@ function initializePools(pools, hScore, startTip) {
       p.chaintip         = startTip;                // Last guaranteed historical common ancestor
       p.scores           = {}
       p.scores[startTip] = score;                   // Apply score to last historical block
-      p.request          = new Set();               // Missing blocks requested from the network 
+      p.requestIds       = new Set();               // Missing blocks requested from the network
+      p.unscored         = new Map();               // Unscored blocks waiting on ancestor score(s)
       p.config = MANIFEST.find(s => s.id === p.strategy).config;  // Save strategy manifest config
    }
 }
@@ -284,18 +287,21 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
             workerData: { idx, pools, blocks, startTip, diffWindows, simDepth}
          }
       );
+      let settled = false;
       worker.once('message', (data) => {
+         settled = true;
+         console.log(`Worker ${idx} completed successfully.`);
          resolve(data);
-         worker.terminate();
       });
       worker.once('error', (err) => {
-         reject(err);
-         worker.terminate();
+         if (!settled) { settled = true; reject(err); }
       });
-      worker.once('exit', code => {
-         if (code !== 0) reject(new Error(`Worker ${idx} exited with code ${code}`));
-         resolve({ pools: {}, blocks: {} });
-         worker.terminate();
+      worker.once('exit', (code) => {
+         if (!settled) {
+            settled = true;
+            if (code === 0) reject(new Error(`Worker ${idx} exited without sending results`));
+            else reject(new Error(`Worker ${idx} exited with code ${code}`));
+         }
       });
    });
 }
