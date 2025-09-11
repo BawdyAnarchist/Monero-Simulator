@@ -7,5 +7,6 @@ data/*
 !data/sample_data/
 !data/sort_results.js
 docs/todo.md
+logs/*
 node_modules/
 src/error.log
