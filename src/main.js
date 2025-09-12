@@ -244,7 +244,7 @@ function importHistory() {
    }  
    /* Scores history irrelevant except the last historical block (chaintip continuity at sim start) */
    const hScore = {                                 // "Weakly subjective" pool perspective
-      simClock:      +timestamp,                    // For sim inspection/auditing purposes
+      simClock:      +timestamp,
       localTime:     +timestamp,                    // Pool's local Unix date of header arrival
       diffScore:     blocks[blockId].difficulty,    // Base difficulty with penalties/bonuses applied
       cumDiffScore:  blocks[blockId].cumDifficulty, // Cumulative scored difficulty

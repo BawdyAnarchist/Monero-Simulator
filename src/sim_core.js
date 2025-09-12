@@ -174,8 +174,8 @@ function hasherFindsBlock(p, eventQueue, activeEvent) {
    if (activeEvent.chaintip !== p.chaintip) {                          // Might be stale
       if (activeEvent.chaintip !== blocks[p.chaintip].prevId) return;  // Definitely stale
 
-      /* If hasher would've found the (hypothetical block after template arrival, return */
-      const hasherRecvTime = p.scores[p.chaintip].localTime - p.ntpDrift + simNoise.owdP2H();
+      /* If hasher would've found the (hypothetical) block after template arrival, return */
+      const hasherRecvTime = p.scores[p.chaintip].simClock + simNoise.owdP2H();
       if (activeEvent.simClock > hasherRecvTime) return;
    }
 
