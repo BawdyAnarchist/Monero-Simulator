@@ -19,7 +19,7 @@ const __filename  = fileURLToPath(import.meta.url);
 const __dirname   = path.dirname(__filename);
 
 /* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
-const { idx, pools, blocks, startTip, diffWindows, simDepth } = workerData;
+const { idx, pools, blocks, startTip, diffWindows, simDepth, logEnabled } = workerData;
 
 /* Difficulty adjustment constants */
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
@@ -38,17 +38,13 @@ const SEED       = Number(process.env.SEED) + idx >>> 0; // Reproducible seed, c
 const rng        = randomLcg(SEED);                      // Quality, reproducible randomness
 let   simNoise   = {};                                   // Will hold probability dist functions
 
+/* Logger */
+const logBuffer = [];
+const log = (...args) => logEnabled && logBuffer.push(`${args.join(' ')}`);
 
 // -----------------------------------------------------------------------------
 // SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
 // -----------------------------------------------------------------------------
-
-/* Debug helper */
-const debug = (() => {
-  if (process.env.DEBUG === 'true') return (...m) => console.log('[DBG]', ...m);
-  return () => {};
-})();
-
 
 function makeNoiseFunctions() {
 /*
@@ -109,7 +105,7 @@ async function makeStrategiesFunctions() {
 // -----------------------------------------------------------------------------
 
 function reconstructDiffWindow(blockId) {
-   debug(`reconstructDiffWindow BEGIN: diffWindow missing for ${blockId}. Reconstructing it ...`);
+   log(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
    let loopId = blockId;
    for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
@@ -143,9 +139,8 @@ function sendDataToMain() {
 
    const filteredBlocks = Object.fromEntries(Object.entries(blocks)
       .filter(([, b]) => b.height > blocks[startTip].height ));
-   parentPort.postMessage({ pools: pools, blocks: filteredBlocks });
+   parentPort.postMessage({ pools: pools, blocks: filteredBlocks, simCoreLog: logBuffer.join('\n') });
 }
-
 // -----------------------------------------------------------------------------
 // SECTION 4: CORE BLOCKCHAIN LOGIC
 // -----------------------------------------------------------------------------
@@ -165,7 +160,8 @@ function simulateBlockTime(eventQueue, p, simClock) {
       chaintip: p.chaintip,  // This is the old chaintip blockId that will be extended
       newIds:   null,        // No newId until the event is verified as "sim"-real
    });
-   debug(`simulateBlockTime END: clock: ${simClock}, TTF: ${timeToFind}, pId: ${p.id}, tip: ${p.chaintip}`);
+   log(`simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
+       `timeToFind: ${timeToFind.toFixed(0)}`);
 }
 
 function hasherFindsBlock(p, eventQueue, activeEvent) {
@@ -188,7 +184,7 @@ function hasherFindsBlock(p, eventQueue, activeEvent) {
    activeEvent.action    = "RECV_OWN";
    eventQueue.push(activeEvent);
 
-   debug(`findBlock END: clock: ${activeEvent.simClock}, pId: ${p.id}, tip: ${p.chaintip}`);
+   log(`hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
 }
 
 function generateBlock(p, activeEvent) {
@@ -215,7 +211,7 @@ function generateBlock(p, activeEvent) {
    blocks[newBlockId]   = newBlock;
    activeEvent.newIds   = [newBlockId];      // API requires an array
 
-   debug(`generateBlock END: clock: ${activeEvent.simClock}, pId: ${p.id}, newId: ${newBlockId}`);
+   log(`generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
    return true;
 }
 
@@ -224,8 +220,6 @@ function calculateNextDifficulty(blockId) {
    Full block difficulty adjustment. diffWindows has the timestamps and cumDifficulty of each
    contender chaintip. We extract and sort those arrays to look like difficulty.cpp.
 */
-   debug(`calculateNextDifficulty START: blockId: ${blockId}, diffWindLeng: ${diffWindows[blockId].length}`);
-
    if (!diffWindows[blockId]) reconstructDiffWindow(blockId);     // Safety for edge cases
 
    const diffWindow = [...diffWindows[blockId]]
@@ -257,7 +251,8 @@ function calculateNextDifficulty(blockId) {
    const target_seconds = BigInt(DIFFICULTY_TARGET_V2);
    const new_difficulty = (total_work * target_seconds + time_span - 1n) / time_span;
 
-   debug(`calculateNextDifficulty END: block: ${blockId}, newDifficulty: ${new_difficulty}`);
+   log(`calcNxtDifficulty: ${blocks[blockId].simClock.toFixed(7)} block: ${blockId} ` +
+       `nextDifficulty: ${new_difficulty}`);
    return new_difficulty <= 0n ? 1n : new_difficulty;
 }
 
@@ -280,7 +275,7 @@ function broadcastBlock(newIds, eventQueue, activeEvent) {
       });
    }
    for (const id of newIds) blocks[id].broadcast = true;   // Set the block as broadcast
-   debug(`broadcastBlock END: clock: ${activeEvent.simClock}, pId: ${activeEvent.poolId}, block: ${newIds}`);
+   log(`broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -293,7 +288,8 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    Integrate return contract: { chaintip, timestamp, scores, broadcastId }, into the current state. 
    * Correct API handling by strategies is crucial. No other way to achieve strategy modularity.*
 */
-   debug(`integrateStrategy BEGIN: clock: ${activeEvent.simClock}, pId: ${p.id}, tip: ${results.chaintip}`);
+   log(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} chaintip: ${results.chaintip}`
+      + ` scoreIds: ${Object.keys(results.scores).join(',')} broadcast: ${results.broadcastIds}`);
 
    /* Remove received blocks (newIds set) from the pool's request list */
    for (const id of activeEvent.newIds || []) p.requestIds.delete(id);
@@ -350,7 +346,6 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    }
 
    if (results.broadcastIds?.length > 0) broadcastBlock(results.broadcastIds, eventQueue, activeEvent);
-   debug(`integrateStrategy END: clock: ${activeEvent.simClock}`);
 }
 
 async function runSimCore() {
@@ -383,7 +378,8 @@ async function runSimCore() {
    /* Event queue engine. Continuous event creation and execution until depth is reached */
    let activeEvent;
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
-      debug(`runSimCORE LOOPstart: activeEvent`, activeEvent);
+      log(`SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
+          `${activeEvent.poolId} action: ${activeEvent.action}`);
       if (activeEvent.simClock > simDepth) break;
 
       const p = pools[activeEvent.poolId];
@@ -403,7 +399,6 @@ async function runSimCore() {
       integrateStrategyResults(p, eventQueue, activeEvent, strategyResults);
 
       resourceManagement(eventQueue);
-      debug(`runSimCORE LOOPend: queue_length:`, eventQueue.length);
    }
    sendDataToMain();
 }

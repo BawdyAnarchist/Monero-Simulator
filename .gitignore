@@ -8,5 +8,6 @@ data/*
 !data/sort_results.js
 docs/todo.md
 logs/*
+!logs/.gitkeep
 node_modules/
 src/error.log

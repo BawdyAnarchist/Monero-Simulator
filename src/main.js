@@ -17,16 +17,18 @@ import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
 import './config_init.js';
 
-const __filename  = fileURLToPath(import.meta.url);
-const __dirname   = path.dirname(__filename);
-const PROJ_ROOT   = path.resolve(__dirname, '..');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+const PROJ_ROOT  = path.resolve(__dirname, '..');
 
 /* Initialization and Setup */
-const ERR_LOG   = path.join(__dirname, 'error.log');
-const HISTORY   = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
-const MANIFEST  = JSON.parse(fs.readFileSync(path.join(
-                             PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
-const POOLS     = JSON.parse(fs.readFileSync(path.join(
+const logEnabled = process.env.NODE_DEBUG?.includes('sim_core');
+const ERR        = path.join(__dirname, '../logs/main_error.log');
+const LOG        = path.join(__dirname, '../logs/sim_core.log');
+const HISTORY    = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
+const MANIFEST   = JSON.parse(fs.readFileSync(path.join(
+                              PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
+const POOLS      = JSON.parse(fs.readFileSync(path.join(
                              PROJ_ROOT, 'config/pools.json'), 'utf8'),
                             (k, v) => (k.startsWith('Comment') ? undefined : v));
 
@@ -34,6 +36,7 @@ const POOLS     = JSON.parse(fs.readFileSync(path.join(
 const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
 const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
 const THREADS    = Number(process.env.THREADS);
+const MAX_RAM    = Number(process.env.MAX_RAM);
 
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
@@ -73,20 +76,27 @@ const activeProcessesLog = (() => {
 // -----------------------------------------------------------------------------
 
 async function conductChecks(pools) {
-   // Check for required simulation files
+   /* Checks when running with logging */
+   if (logEnabled) {
+      if (SIM_ROUNDS > 1)
+         throw new Error('Log mode only with SIM_ROUNDS=1. Large file, overwrites the prev log.');
+      if (SIM_DEPTH > 1000)
+         console.warn('Warning: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
+   }
+
+   /* Check for required simulation files */
    if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
 
-   // Check for presence of critical environment variables
+   /* Check for presence of critical environment variables */
    const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'THREADS', 'NETWORK_HASH',
       'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
       'NTP_STDEV', 'PING', 'MBPS', 'CV', 'BLOCK_SIZE', 'SEED'];
-
    for (const v of envVars) {
       if (process.env[v] === undefined || isNaN(parseFloat(process.env[v])))
          throw new Error(`Invalid or missing environment variable: ${v}`);
    }
 
-   // Verify pool configurations and total hashpower = 100%
+   /* Verify pool configurations and total hashpower = 100% */
    let totalHPP = 0;
    for (const [poolId, poolConfig] of Object.entries(pools)) {
       if (!poolConfig.strategy || !MANIFEST.find(s => s.id === poolConfig.strategy))
@@ -97,7 +107,7 @@ async function conductChecks(pools) {
       throw new Error(`Total pool HPP must sum to 1.0, but is ${totalHPP}`);
    }
 
-   // Verify all strategy modules and their entry points
+   /* Verify all strategy modules and their entry points */
    const strategyChecks = MANIFEST.map(async (strategy) => {
       const modulePath  = path.resolve(__dirname, strategy.module);
       if (!fs.existsSync(modulePath))
@@ -284,7 +294,9 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth}
+            execArgv: process.execArgv,    // Implements nodejs inbuilt `debugger;` into sim_core
+            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, logEnabled},
+            resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
          }
       );
       let settled = false;
@@ -311,6 +323,8 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
+   if (logEnabled) console.log(`Log enabled, output at: ${LOG}\n`);
+
    let pools = JSON.parse(JSON.stringify(POOLS));
    await conductChecks(pools);                 // Check critical files, constants, and functions
 
@@ -330,8 +344,9 @@ async function main() {
    /* Await each job’s completion (order of resolution is not important) */
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
-      const { pools: poolsResults, blocks: blocksResults } = await promise;
+      const { pools: poolsResults, blocks: blocksResults, simCoreLog: simCoreLog } = await promise;
       if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
+      if (logEnabled && simCoreLog) fs.writeFileSync(LOG, `WORKER ${idx} LOG\n${simCoreLog}\n`);
       await recordResultsToCSV(idx, poolsResults, blocksResults);
    }
 
@@ -354,6 +369,6 @@ process.once('SIGTERM', async () => {
 main().catch(err => {
    console.error('\nA critical error occurred during execution:', err);
    const errorMsg = `[${new Date().toISOString()}] Critical main() error: ${err.stack || err}\n`;
-   fs.appendFileSync(ERR_LOG, errorMsg);
+   fs.appendFileSync(ERR, errorMsg);
    process.exit(1);
 });

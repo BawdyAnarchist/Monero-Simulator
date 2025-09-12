@@ -5,7 +5,10 @@
   "type": "module",
   "main": "src/main.js",
   "scripts": {
-    "start": "node --max-old-space-size=8092 src/main.js",
+    "start": "node src/main.js",
+    "log": "NODE_DEBUG=sim_core,net node src/main.js",
+    "debug:main":   "node --inspect-brk=0.0.0.0:9229 src/main.js",
+    "debug:worker": "node --inspect-brk=0.0.0.0:9230 src/main.js",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint . --fix"
   },

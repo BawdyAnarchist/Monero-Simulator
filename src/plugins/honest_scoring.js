@@ -1,13 +1,11 @@
 import * as scoringFunctions from './scoring_functions.js';
 
-/* Debug helper */
-const debug = (() => {
-  if (process.env.DEBUG === 'true') return (...m) => console.log('[DBG]', ...m);
-  return () => {};
-})();
+/* Logger */
+//const logbuffer = [];
+//const log = (...args) => logEnabled && logBuffer.push(`[LOG] ${args.join(' ')}`);
 
 export function invokeStrategyH(activeEvent, p, blocks) {
-   debug(`invokeStrategy BEGIN: clock: ${activeEvent.simClock}, pId: ${p.id}`);
+   //debug(`invokeStrategy BEGIN: clock: ${activeEvent.simClock}, pId: ${p.id}`);
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
 
    /* Chaintip is already scored. No double scoring */
@@ -33,8 +31,8 @@ export function invokeStrategyH(activeEvent, p, blocks) {
       results.broadcastIds = [newTip];
    }
 
-   debug(`invokeStrategyH END: timestamp: ${results.timestamp},
-          chaintip: ${results.chaintip}, broadcastIds: ${results.broadcastIds}`);
+   //debug(`invokeStrategyH END: timestamp: ${results.timestamp},
+    //      chaintip: ${results.chaintip}, broadcastIds: ${results.broadcastIds}`);
    return results;
 }
 
