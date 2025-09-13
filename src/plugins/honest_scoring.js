@@ -1,11 +1,28 @@
+/*
+   Strategy modules isolate a pool's decision making process from the functionally-oriented
+   sim_core. Meaning that core logic for the behavior of any given pool, must be simulated here.
+   Checking for branch/head validity, requesting missing blocks, determining if a received block
+   links ancestors that were received out-of-order, general and robust ability to reorganize,
+   determining whether or not to broadcast a block, and in some cases, timestamp manipulation.
+*/
+
+/*
+   This strategy serves as the reference behavior of Monero's current PoW consensus for honest
+   pools. It also serves a dual purpose for scoring strategies, where cumulative difficulty can
+   easily be adjusted based on any number of polices flagged in the strategy_manifest.
+   The baseline behavior can be invoked simply by leaving `config []` empty in the manifest. 
+*/
+
 import * as scoringFunctions from './scoring_functions.js';
 
 /* Logger */
-//const logbuffer = [];
-//const log = (...args) => logEnabled && logBuffer.push(`[LOG] ${args.join(' ')}`);
+const logbuffer = [];
+const log = (...args) => logEnabled && logBuffer.push(`[LOG] ${args.join(' ')}`);
 
 export function invokeStrategyH(activeEvent, p, blocks) {
-   //debug(`invokeStrategy BEGIN: clock: ${activeEvent.simClock}, pId: ${p.id}`);
+/* Entry point from the sim_core, and high level coordinator of the strategy */
+   log(`invokeStrategyH:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
+
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
 
    /* Chaintip is already scored. No double scoring */
@@ -30,9 +47,6 @@ export function invokeStrategyH(activeEvent, p, blocks) {
       results.timestamp = scores[newTip].localTime;
       results.broadcastIds = [newTip];
    }
-
-   //debug(`invokeStrategyH END: timestamp: ${results.timestamp},
-    //      chaintip: ${results.chaintip}, broadcastIds: ${results.broadcastIds}`);
    return results;
 }
 
@@ -41,6 +55,8 @@ function resolveBranch(activeEvent, p, blocks, newTip) {
    Code logic needs the full branch from newIds back to ancestorId. Walk backwards via prevId
    until the first pool-scored block is regarded as the heaviest. That's the common ancestor.
 */
+   log(`resolveBranch:     ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
+
    let id            = newTip;
    let scores        = Object.create(null);
    let scoresIds     = [];
@@ -79,6 +95,8 @@ function scoreDanglingChaintips(activeEvent, p, blocks, scores, newTip) {
    Now that the link has been received, score the descendants who were waiting for completion.
    If scored successfully, these must be added to `scores` and returned to the sim_core.
 */
+   log(`scoreDanglingTips: ${activeEvent.simClock.toFixed(7)} ${p.id}`);
+
    if (!scores[newTip]?.cumDiffScore) return;         // Tip must have a score to propagate
    const startHeight = blocks[newTip].height;
 
@@ -107,6 +125,8 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
    Must be careful to separate our code's global view, `blocks`, from the pool's view: `scores`.
    Collect list of blocks that need to be requested (if any), then score the block, if able.
 */
+   log(`scoreBlock         ${activeEvent.simClock.toFixed(7)} ${p.id} blockId: ${id}`);
+
    const prevId = blocks[id].prevId;
    const prevCumDiffScore = p.scores[prevId]?.cumDiffScore ?? scores[prevId]?.cumDiffScore;
    if (!prevCumDiffScore) return false;
@@ -131,6 +151,7 @@ function compileScoredResults(activeEvent, p, blocks, scores, ancestorId, reques
    highest scoring branch is selected. Both heaviest and orphan branches need to update isHeadPath.
    Tracking which scores are in the heaviest chain (vs orphans), helps quickly find common ancestor.
 */
+   log(`compileScored:     ${activeEvent.simClock.toFixed(7)} ${p.id} ancestor: ${ancestorId}`);
    /* Determine the correct pool chaintip */
    const poolTipScore = p.scores[p.chaintip].cumDiffScore;
    let maxTip = [ 0n , null ], chaintip;                 // Use BigInt explicitly (no coercion)
@@ -171,4 +192,3 @@ function compileScoredResults(activeEvent, p, blocks, scores, ancestorId, reques
       requestIds:   requestIds.size ? requestIds : null,
    };
 }
-
