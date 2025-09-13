@@ -309,11 +309,15 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
          if (!settled) { settled = true; reject(err); }
       });
       worker.once('exit', (code) => {
-         if (!settled) {
+         if (settled) return;
+         setImmediate(() => {       // Defer so an in-flight 'message' can arrive first
+            if (settled) return;
             settled = true;
-            if (code === 0) reject(new Error(`Worker ${idx} exited without sending results`));
-            else reject(new Error(`Worker ${idx} exited with code ${code}`));
-         }
+            const msg = code === 0
+               ? new Error(`Worker ${idx} exited without sending results`)
+               : new Error(`Worker ${idx} exited with code ${code}`);
+            reject(msg);
+         });
       });
    });
 }

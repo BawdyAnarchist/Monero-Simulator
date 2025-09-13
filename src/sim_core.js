@@ -37,6 +37,7 @@ const BLOCK_SIZE = Number(process.env.BLOCK_SIZE);       // (kb)
 const SEED       = Number(process.env.SEED) + idx >>> 0; // Reproducible seed, cast as uint32
 const rng        = randomLcg(SEED);                      // Quality, reproducible randomness
 let   simNoise   = {};                                   // Will hold probability dist functions
+let   has_exited = false;
 
 /* Logger */
 const logBuffer = [];
@@ -131,16 +132,31 @@ function resourceManagement(eventQueue) {
    if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
 }
 
-function sendDataToMain() {
-/* Console messaging, trim historical blocks, and send data objects back to main.js  */
-   const { total_heap_size, used_heap_size } = v8.getHeapStatistics();
-      console.log(`Round ${idx.toString().padStart(3, '0')} completed with ` +
-         `heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB, ${new Date().toLocaleTimeString()}`);
+function exitSimWorker(exit_code) {
+/* Unified exit and message handling, both success and error */
 
-   const filteredBlocks = Object.fromEntries(Object.entries(blocks)
+   if (has_exited) return;   // Prevent any possibility of a double-call (unlikely but defended)
+   has_exited = true;
+
+   if (exit_code === 0) {
+      const { used_heap_size } = v8.getHeapStatistics();             // Heap RAM usage
+      console.log(`Round ${idx.toString().padStart(3, '0')} completed with heap size: ` +
+         `${(used_heap_size/1_048_576).toFixed(1)} MB, ${new Date().toLocaleTimeString()}`);
+   }
+
+   const filteredBlocks = Object.fromEntries(Object.entries(blocks)  // Filter historical blocks
       .filter(([, b]) => b.height > blocks[startTip].height ));
-   parentPort.postMessage({ pools: pools, blocks: filteredBlocks, simCoreLog: logBuffer.join('\n') });
+
+   parentPort.postMessage({                 // Send data and log back to main.js
+      pools:      pools,
+      blocks:     filteredBlocks,
+      simCoreLog: logBuffer.join('\n')
+   });
+
+   setImmediate(() => process.exit(exit_code));
 }
+
+
 // -----------------------------------------------------------------------------
 // SECTION 4: CORE BLOCKCHAIN LOGIC
 // -----------------------------------------------------------------------------
@@ -365,8 +381,8 @@ async function runSimCore() {
    const eventQueue = new TinyQueue([], (a, b) => {
       if (a.simClock !== b.simClock) return a.simClock - b.simClock;
       if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
-      if (a.action   !== b.action)   return a.action.localeCompare(b.action);
-      if (a.chaintip !== b.chaintip) return +a.chaintip - +b.chaintip;
+      if (a.action   !== b.action)   return b.action.localeCompare(a.action); // RECV_OWN first
+      if (a.chaintip !== b.chaintip) return +a.chaintip - +b.chaintip;        // Cast numeric blockId
       const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : undefined;
       const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : undefined;
       if (aNewId !== bNewId) return (+aNewId || 0) - (+bNewId || 0);
@@ -400,7 +416,18 @@ async function runSimCore() {
 
       resourceManagement(eventQueue);
    }
-   sendDataToMain();
+   exitSimWorker(0);
 }
 
+// Activate crash handling so that we always get logs and available data returned to main
+process.on('uncaughtException',  (err) => {
+   log('uncaughtException:', err?.stack || String(err));
+   exitSimWorker(1);
+});
+process.on('unhandledRejection', (reason) => {
+   log('unhandledRejection:', reason?.stack || String(reason));
+   exitSimWorker(1);
+});
+
+// sim_core.js
 runSimCore();
