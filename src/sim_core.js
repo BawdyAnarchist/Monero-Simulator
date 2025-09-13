@@ -78,8 +78,8 @@ function makeNoiseFunctions() {
       ? baseP2H() + (spA2 + (spB2 - spA2) * rng()) : baseP2H()
 
    return {
-      owdP2P:    baseP2P,                        // One-Way-Delay, Pool-to-Pool
-      owdP2H:    baseP2H,                        // One-Way-Delay, Pool-to-Hasher
+      owdP2P:    owdP2P,                         // One-Way-Delay, Pool-to-Pool
+      owdP2H:    owdP2H,                         // One-Way-Delay, Pool-to-Hasher
       transTime: logNormal(bwMu, sigma),         // Time to send block, not including OWD
       blockTime: randomExponential.source(rng),
    }
