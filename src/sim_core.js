@@ -94,6 +94,7 @@ async function makeStrategiesFunctions() {
    let strategies = Object.create(null);
    for (const strategy of MANIFEST) {
       const module = await import(path.resolve(__dirname, strategy.module));
+      module.setLog(log);                            // Inject log into the strategy module
       const entryPoint = strategy.entryPoint;
       strategies[strategy.id] = module[entryPoint];  // Populate strategies with id and function
    }

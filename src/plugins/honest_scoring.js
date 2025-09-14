@@ -15,9 +15,9 @@
 
 import * as scoringFunctions from './scoring_functions.js';
 
-/* Logger */
-const logbuffer = [];
-const log = (...args) => logEnabled && logBuffer.push(`[LOG] ${args.join(' ')}`);
+/* Re-use the same log from sim_core, populated directly via function export (to sim_core) */
+let log = () => {};
+export function setLog(logFunc) { log = logFunc; }
 
 export function invokeStrategyH(activeEvent, p, blocks) {
 /* Entry point from the sim_core, and high level coordinator of the strategy */
@@ -32,7 +32,7 @@ export function invokeStrategyH(activeEvent, p, blocks) {
    /* Analyze the branch path between newTip <--> ancestor. Compile important scoring variables */
    const [scores, scoresIds, ancestorId, requestIds] = resolveBranch(activeEvent, p, blocks, newTip);
 
-   /* Attempt to scoring new blocks. First failure indicates inability to score descendants (break) */
+   /* Attempt to score new blocks. First failure indicates inability to score descendants (break) */
    for (const id of scoresIds)
       if (!scoreBlock(activeEvent, p, blocks, scores, id)) break;
 
