@@ -27,7 +27,9 @@ export function invokeStrategyH(activeEvent, p, blocks) {
 
    /* Chaintip is already scored. No double scoring */
    if (p.scores[newTip]?.cumDiffScore) return {
-         chaintip: p.chaintip, timestamp: null, scores: null, broadcastIds: null, requestIds: null};
+      chaintip: p.chaintip, altTip: p.altTip,
+      timestamp: null, scores: null, broadcastIds: null, requestIds: null
+   };
 
    /* Analyze the branch path between newTip <--> ancestor. Compile important scoring variables */
    const [scores, scoresIds, ancestorId, requestIds] = resolveBranch(activeEvent, p, blocks, newTip);
@@ -148,13 +150,14 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
 function compileScoredResults(activeEvent, p, blocks, scores, ancestorId, requestIds) {
 /*
    Having walked backwards/forwards from the newIds, and scored all blocks known to the pool; the
-   highest scoring branch is selected. Both heaviest and orphan branches need to update isHeadPath.
-   Tracking which scores are in the heaviest chain (vs orphans), helps quickly find common ancestor.
+   highest scoring branch is selected. Both heaviest and orphan branches need to update isHeadPath,
+   which is tracked/marked in the global state, as an efficient means of finding the ancestor.
 */
    log(`compileScored:     ${activeEvent.simClock.toFixed(7)} ${p.id} ancestor: ${ancestorId}`);
    /* Determine the correct pool chaintip */
    const poolTipScore = p.scores[p.chaintip].cumDiffScore;
-   let maxTip = [ 0n , null ], chaintip;                 // Use BigInt explicitly (no coercion)
+   let chaintip;
+   let maxTip = [ 0n , null ];                           // Use BigInt explicitly (no coercion)
    for (const id in scores) maxTip = scores[id].cumDiffScore > maxTip[0]
       ? [ scores[id].cumDiffScore , id ]
       : maxTip;
@@ -186,6 +189,7 @@ function compileScoredResults(activeEvent, p, blocks, scores, ancestorId, reques
 
    return {
       chaintip:     chaintip,
+      altTip:       null,
       timestamp:    null,
       scores:       Object.keys(scores).length ? scores : null,
       broadcastIds: null,
