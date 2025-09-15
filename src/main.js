@@ -273,8 +273,8 @@ function initializePools(pools, hScore, startTip) {
       p.ntpDrift         = ntpDrift;                // Persistent ntp drift
       p.hashrate         = p.HPP * NETWORK_HASH;    // hashrate based on hashpower percentage
       p.chaintip         = startTip;                // Last guaranteed historical common ancestor
-      p.altTip:          = null,                    // For selfish pools to track honest chaintip
-      p.scores           = {}
+      p.altTip           = null;                    // For selfish pools to track honest chaintip
+      p.scores           = Object.create(null);
       p.scores[startTip] = score;                   // Apply score to last historical block
       p.requestIds       = new Set();               // Missing blocks requested from the network
       p.unscored         = new Map();               // Unscored blocks waiting on ancestor score(s)
