@@ -94,7 +94,7 @@ async function makeStrategiesFunctions() {
    let strategies = Object.create(null);
    for (const strategy of MANIFEST) {
       const module = await import(path.resolve(__dirname, strategy.module));
-      module.setLog(log);                            // Inject log into the strategy module
+      if (typeof module.setLog === 'function') module.setLog(log);   // Inject log into strategy
       const entryPoint = strategy.entryPoint;
       strategies[strategy.id] = module[entryPoint];  // Populate strategies with id and function
    }
@@ -336,8 +336,9 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
       }
    }
 
-   /* Chaintip switch requires a new blockTime */
-   if (p.chaintip !== results.chaintip) {
+   /* Tracking altTip explicitly, helps code-efficiency inside the selfish strategies module */
+   if (p.altTip !== results.altTip) p.altTip = results.altTip;
+   if (p.chaintip !== results.chaintip) {            // Chaintip is the head being mined by the pool
       p.chaintip = results.chaintip;
       simulateBlockTime(eventQueue, p, activeEvent.simClock);
    }
