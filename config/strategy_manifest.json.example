@@ -1,5 +1,3 @@
-##  NOTE: This is an example file. DO NOT MODIFY IT!!  ##
-##  For runtime changes, copy-to and edit: config/strategy_manifest.json  ##
 [
   {
     "id": "HB0",
@@ -28,18 +26,18 @@
   },
   {
     "id": "SR0",
-    "name": "Selfish_Reorg",
-    "description": "Selfish pool withholds all blocks until the moment of reorg",
-    "module": "./plugins/silent_reorg.js",
-    "entryPoint": "invokeStrategySR",
-    "config": { }
+    "name": "Stubborn_Silent",
+    "description": "No retorts to honest publishing (silent), tolerates falling behind",
+    "module": "./plugins/selfish.js",
+    "entryPoint": "invokeStrategyS",
+    "config": { "retortPolicy": 0, "catchupTolerance": -1}
   },
   {
-    "id": "SS0",
-    "name": "Selfish_Sniper",
-    "description": "Newly published honest blocks are 'sniped' immediately by the selfish pool",
-    "module": "./plugins/selfish_sniper.js",
-    "entryPoint": "invokeStrategySS",
-    "config": {  }
+    "id": "SS1",
+    "name": "Stubborn_Sniper",
+    "description": "Publish parity with honest chain, tolerates falling behind",
+    "module": "./plugins/selfish.js",
+    "entryPoint": "invokeStrategyS",
+    "config": { "retortPolicy": 1, "catchupTolerance": -1}
   }
 ]
