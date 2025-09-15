@@ -68,8 +68,6 @@ function resolveBranch(activeEvent, p, blocks, newTip) {
          cumDiffScore: null,
          isHeadPath:   false,
          chaintip:     null
-         chaintipPriv: null
-         chaintipPub:  null
       } : null));
 
       if (score?.isHeadPath) break;    // Found the ancestor
