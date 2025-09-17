@@ -425,14 +425,15 @@ async function runSimCore() {
 }
 
 // Activate crash handling so that we always get logs and available data returned to main
-process.on('uncaughtException',  (err) => {
-   log('uncaughtException:', err?.stack || String(err));
-   exitSimWorker(1);
-});
 process.on('unhandledRejection', (reason) => {
    log('unhandledRejection:', reason?.stack || String(reason));
+   console.error('unhandledRejection:', reason?.stack || reason);
+   exitSimWorker(1);
+});
+process.on('uncaughtException',  (err)    => {
+   log('uncaughtException:', err?.stack || String(err));
+   console.error('uncaughtException:', err?.stack || err);
    exitSimWorker(1);
 });
 
-// sim_core.js
 runSimCore();

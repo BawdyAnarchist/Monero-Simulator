@@ -309,24 +309,20 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
             resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
          }
       );
-      let settled = false;
-      worker.once('message', (data) => {
-         settled = true;
-         console.log(`Worker ${idx} completed successfully.`);
-         resolve(data);
-      });
-      worker.once('error', (err) => {
-         if (!settled) { settled = true; reject(err); }
-      });
+      let result;
+      let errorObj;
+      worker.once('message', (data) => { result = data; });
+      worker.once('error', (err) => { errorObj = err; });
       worker.once('exit', (code) => {
-         if (settled) return;
-         setImmediate(() => {       // Defer so an in-flight 'message' can arrive first
-            if (settled) return;
-            settled = true;
-            const msg = code === 0
-               ? new Error(`Worker ${idx} exited without sending results`)
-               : new Error(`Worker ${idx} exited with code ${code}`);
-            reject(msg);
+         setImmediate(() => {
+            if (code === 0) {
+               if (result !== undefined) resolve(result);
+               else reject(new Error(`Worker ${idx} exited without sending results`));
+            } else {
+               const err = errorObj || new Error(`Worker ${idx} exited with code ${code}`);
+               if (result !== undefined) err.result = result;
+               reject(err);
+            }
          });
       });
    });
@@ -338,11 +334,11 @@ async function main() {
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
    let pools = JSON.parse(JSON.stringify(POOLS));
-   await conductChecks(pools);                 // Check critical files, constants, and functions
+   await conductChecks(pools);                      // Check critical files, constants, and functions
 
    const [blocks, hScore, startTip, diffWindows] = importHistory();
-   initializePools(pools, hScore, startTip);            // Setup ntpDrift, hashrate, and history
-   initializeResultsStorage(blocks, blocks[startTip], hScore, pools); // Depends on pools/blocks initialization
+   initializePools(pools, hScore, startTip);                 // Setup ntpDrift, hashrate, and history
+   initializeResultsStorage(blocks, blocks[startTip], hScore, pools); // Requires pools/blocks fields
 
    /* Set thread limit, depth, and prepare the worker call */ 
    const limit    = pLimit(THREADS || 2);
@@ -359,16 +355,19 @@ async function main() {
       try {
          const { pools: poolsResults, blocks: blocksResults,
                  infoLog: infoLog, probeLog: probeLog } = await promise;
-         if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
+         if (++completedJobs === jobs.length) console.log('Rounds complete. Waiting on disk ...');
          if (enableLog)  fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${infoLog}\n`);
          if (enableLog2) fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${probeLog}\n`);
          await recordResultsToCSV(idx, poolsResults, blocksResults);
       } catch (error) {
-        console.error(`  ### FAILURE on round: ${idx}. Check log for details ###`);
-        break;
+         console.error(`FAILURE on round: ${idx}`);
+         if (enableLog && error.result?.infoLog)
+            fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${error.result.infoLog}\n`);
+         if (enableLog2 && error.result?.probeLog)
+            fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${error.result.probeLog}\n`);
+         break;
       }
    }
-
    console.log('Closing streams ...');
    await gracefulShutdown();
    console.log('Sim complete. Exiting at:', new Date().toLocaleTimeString());
