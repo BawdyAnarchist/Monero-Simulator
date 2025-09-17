@@ -360,8 +360,8 @@ async function main() {
          const { pools: poolsResults, blocks: blocksResults,
                  infoLog: infoLog, probeLog: probeLog } = await promise;
          if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
-         if (enableLog  && infoLog)  fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${infoLog}\n`);
-         if (enableLog2 && probeLog) fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${probeLog}\n`);
+         if (enableLog)  fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${infoLog}\n`);
+         if (enableLog2) fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${probeLog}\n`);
          await recordResultsToCSV(idx, poolsResults, blocksResults);
       } catch (error) {
         console.error(`  ### FAILURE on round: ${idx}. Check log for details ###`);
