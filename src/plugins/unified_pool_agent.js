@@ -116,7 +116,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    }
 
    log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${k_New} sL: ${selfLength}`
-      + `aL: ${altLength} addL: ${addedLength} mTL: ${maxTipLength} anc: ${altAncestor}`);
+      + ` aL: ${altLength} addL: ${addedLength} mTL: ${maxTipLength} anc: ${altAncestor}`);
 /*
    Equation explanation: Outcome > 0 indicates logic will be triggered.
       (altLength + addedLength):  Selfish pool never publishes if honest fork has 0 blocks
