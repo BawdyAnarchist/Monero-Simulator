@@ -22,9 +22,11 @@ const __dirname  = path.dirname(__filename);
 const PROJ_ROOT  = path.resolve(__dirname, '..');
 
 /* Initialization and Setup */
-const logEnabled = process.env.NODE_DEBUG?.includes('sim_core');
+const enableLog  = process.env.NODE_DEBUG?.includes('info');
+const enableLog2 = process.env.NODE_DEBUG?.includes('probe');
 const ERR        = path.join(__dirname, '../logs/main_error.log');
-const LOG        = path.join(__dirname, '../logs/sim_core.log');
+const LOG        = path.join(__dirname, '../logs/info.log');
+const LOG2       = path.join(__dirname, '../logs/probe.log');
 const HISTORY    = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
 const MANIFEST   = JSON.parse(fs.readFileSync(path.join(
                               PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
@@ -77,7 +79,7 @@ const activeProcessesLog = (() => {
 
 async function conductChecks(pools) {
    /* Checks when running with logging */
-   if (logEnabled) {
+   if (enableLog) {
       if (SIM_ROUNDS > 1)
          throw new Error('Log mode only with SIM_ROUNDS=1. Large file, overwrites the prev log.');
       if (SIM_DEPTH > 1000)
@@ -303,7 +305,7 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, logEnabled},
+            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, enableLog, enableLog2},
             resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
          }
       );
@@ -335,8 +337,6 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
-   if (logEnabled) console.log(`Log enabled, output at: ${LOG}\n`);
-
    let pools = JSON.parse(JSON.stringify(POOLS));
    await conductChecks(pools);                 // Check critical files, constants, and functions
 
@@ -357,9 +357,11 @@ async function main() {
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
-         const { pools: poolsResults, blocks: blocksResults, simCoreLog } = await promise;
+         const { pools: poolsResults, blocks: blocksResults,
+                 infoLog: infoLog, probeLog: probeLog } = await promise;
          if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
-         if (logEnabled && simCoreLog) fs.writeFileSync(LOG, `WORKER ${idx} LOG\n${simCoreLog}\n`);
+         if (enableLog  && infoLog)  fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${infoLog}\n`);
+         if (enableLog2 && probeLog) fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${probeLog}\n`);
          await recordResultsToCSV(idx, poolsResults, blocksResults);
       } catch (error) {
         console.error(`  ### FAILURE on round: ${idx}. Check log for details ###`);

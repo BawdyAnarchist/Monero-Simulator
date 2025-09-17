@@ -19,7 +19,7 @@ const __filename  = fileURLToPath(import.meta.url);
 const __dirname   = path.dirname(__filename);
 
 /* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
-const { idx, pools, blocks, startTip, diffWindows, simDepth, logEnabled } = workerData;
+const { idx, pools, blocks, startTip, diffWindows, simDepth, enableLog, enableLog2 } = workerData;
 
 /* Difficulty adjustment constants */
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
@@ -39,9 +39,11 @@ const rng        = randomLcg(SEED);                      // Quality, reproducibl
 let   simNoise   = {};                                   // Will hold probability dist functions
 let   has_exited = false;
 
-/* Logger */
+/* Loggers */
 const logBuffer = [];
-const log = (...args) => logEnabled && logBuffer.push(`${args.join(' ')}`);
+const log  = (...args) => enableLog  && logBuffer.push(`${args.join(' ')}`);
+const logBuffer2 = [];
+const log2 = (...args) => enableLog2 && logBuffer2.push(`${args.join(' ')}`);
 
 // -----------------------------------------------------------------------------
 // SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
@@ -149,9 +151,10 @@ function exitSimWorker(exit_code) {
       .filter(([, b]) => b.height > blocks[startTip].height ));
 
    parentPort.postMessage({                 // Send data and log back to main.js
-      pools:      pools,
-      blocks:     filteredBlocks,
-      simCoreLog: logBuffer.join('\n')
+      pools:    pools,
+      blocks:   filteredBlocks,
+      infoLog:  logBuffer.join('\n'),
+      probeLog: logBuffer2.join('\n')
    });
 
    setImmediate(() => process.exit(exit_code));
@@ -197,9 +200,10 @@ function hasherFindsBlock(p, eventQueue, activeEvent) {
    }
 
    /* The block is valid from the hasher's perspective. Send to pool */
-   activeEvent.simClock += simNoise.owdP2H();  // Add network latency to future event
-   activeEvent.action    = "RECV_OWN";
-   eventQueue.push(activeEvent);
+   let newEvent       = {...activeEvent};
+   newEvent.simClock += simNoise.owdP2H();  // Add network latency to future event
+   newEvent.action    = "RECV_OWN";
+   eventQueue.push(newEvent);
 
    log(`hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
 }
@@ -395,9 +399,9 @@ async function runSimCore() {
    /* Event queue engine. Continuous event creation and execution until depth is reached */
    let activeEvent;
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
+      if (activeEvent.simClock > simDepth) break;
       log(`SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
           `${activeEvent.poolId} action: ${activeEvent.action}`);
-      if (activeEvent.simClock > simDepth) break;
 
       const p = pools[activeEvent.poolId];
 
