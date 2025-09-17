@@ -295,7 +295,6 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            execArgv: process.execArgv,    // Implements nodejs inbuilt `debugger;` into sim_core
             workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, logEnabled},
             resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
          }
