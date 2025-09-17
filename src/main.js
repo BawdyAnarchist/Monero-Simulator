@@ -115,14 +115,15 @@ async function conductChecks(pools) {
       const module = await import(modulePath);
       if (typeof module[strategy.entryPoint] !== 'function')
          throw new Error(`EntryPoint '${strategy.entryPoint}' not a function in ${strategy.module}`);
+
+      /* unified_pool_agent.js is 1st class citizen, even though technically it's a pluggable module */
+      if (strategy.module === './plugins/unified_pool_agent.js') {
+         if (strategy.config?.policy?.honest === undefined) throw new Error(
+            `Strategy Manifest for ${strategy.id} is missing config object: config.policy.honest`);
+         if (strategy.config?.scoringFunctions === undefined) throw new Error(
+            `Strategy Manifest for ${strategy.id} is missing config object: config.scoringFunctions`);
+      }
    });
-   /* unified_pool_agent.js is 1st class citizen, even though technically it's a pluggable module */
-   if (strategy.module === './plugins/unified_pool_agent.js') {
-      if (strategy.config?.policy?.honest === undefined) throw new Error(
-         `Strategy Manifest for ${strategy.id} is missing config object: config.policy.honest`);
-      if (strategy.config?.scoringFunctions === undefined) throw new Error(
-         `Strategy Manifest for ${strategy.id} is missing config object: config.scoringFunctions`);
-   }
    await Promise.all(strategyChecks);
 } 
 
@@ -355,10 +356,15 @@ async function main() {
    /* Await each job’s completion (order of resolution is not important) */
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
-      const { pools: poolsResults, blocks: blocksResults, simCoreLog: simCoreLog } = await promise;
-      if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
-      if (logEnabled && simCoreLog) fs.writeFileSync(LOG, `WORKER ${idx} LOG\n${simCoreLog}\n`);
-      await recordResultsToCSV(idx, poolsResults, blocksResults);
+      try {
+         const { pools: poolsResults, blocks: blocksResults, simCoreLog } = await promise;
+         if (++completedJobs === jobs.length) console.log('All rounds complete. Waiting on disk ...');
+         if (logEnabled && simCoreLog) fs.writeFileSync(LOG, `WORKER ${idx} LOG\n${simCoreLog}\n`);
+         await recordResultsToCSV(idx, poolsResults, blocksResults);
+      } catch (error) {
+        console.error(`  ### FAILURE on round: ${idx}. Check log for details ###`);
+        break;
+      }
    }
 
    console.log('Closing streams ...');
