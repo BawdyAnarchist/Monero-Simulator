@@ -116,7 +116,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    }
 
    log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${k_New} sL: ${selfLength}`
-      + ` aL: ${altLength} addL: ${addedLength} mTL: ${maxTipLength} anc: ${altAncestor}`);
+      + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${altAncestor}`);
 /*
    Equation explanation: Outcome > 0 indicates logic will be triggered.
       (altLength + addedLength):  Selfish pool never publishes if honest fork has 0 blocks
@@ -137,7 +137,6 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       results.chaintip = maxTip[1];
       return
    }
-
    /* If triggered, assemble the list of unbroadcast blocks that might be broadcast */
    let unbroadcast = [];
    if (claimThresh > 0 || retortCount > 0) {
@@ -148,11 +147,18 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       }
       unbroadcast.reverse();
    }
-
    /* Broadcast the list as appropriate */
    results.broadcastIds = (claimThresh > 0 )
       ? unbroadcast
       : unbroadcast.slice(0, retortCount);
+   if (results.broadcastIds.length === 0) return;
+
+   /* Broadcast tip could have higher score than results.altTip. Check and update */
+   const bcTip       = results.broadcastIds.at(-1);
+   const altTip      = results.altTip ?? p.altTip;
+   const bcTipScore  = scores[bcTip]?.cumDiffScore  ?? p.scores[bcTip].cumDiffScore;
+   const altTipScore = scores[altTip]?.cumDiffScore ?? p.scores[altTip].cumDiffScore;
+   if (bcTipScore > altTipScore) results.altTip = bcTip;
 }
 
 function scoreBlock(activeEvent, p, blocks, scores, id) {
@@ -253,7 +259,10 @@ function scoreDanglingChaintips(activeEvent, p, blocks, scores, newTip) {
 }
 
 function findHighestScore(p, scores) {
-/* We're concerned with the highest score but not yet concerned with switching the pool's chaintip */
+/*
+   Identifies the highest score relevant to the completed branch of the newIds, not
+   the pool itself. Used later for p.chaintip determination, and selfish k calculations
+*/
    let maxTip = [ 0n , null ];  // Use BigInt explicitly (no coercion)
    for (const id in scores) maxTip = scores[id].cumDiffScore > maxTip[0]
       ? [ scores[id].cumDiffScore , id ]
