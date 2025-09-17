@@ -167,7 +167,8 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
       const scoringFunction = scoringFunctions[funcName];
       if (typeof scoringFunction !== 'function')
          throw new Error('Non-existent scoring function: ' + funcName);
-      adjustment += scoringFunction(blocks, p, id);
+      const parameters = scoringList[funcName];
+      adjustment += scoringFunction(blocks, p, id, parameters);
    }
    scores[id].diffScore    += BigInt(adjustment);                   // Final scores adjustment
    scores[id].cumDiffScore  = prevCumDiffScore + scores[id].diffScore;
