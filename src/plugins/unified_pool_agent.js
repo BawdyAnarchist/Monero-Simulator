@@ -112,7 +112,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       k_New = selfLength - maxTipLength;             // Extend the honest branch 
       results.chaintip = p.chaintip;
       results.altTip   = maxTip[1]                   // Must update the altTip
-      addedLength      = maxTipLength - altLength;
+      addedLength      = Math.max(0, maxTipLength - altLength);  // No negatives (pollutes equation)
    }
 
    log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${k_New} sL: ${selfLength}`

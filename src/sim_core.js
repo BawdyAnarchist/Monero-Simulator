@@ -305,8 +305,7 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    Integrate return contract: { chaintip, timestamp, scores, broadcastId }, into the current state. 
    * Correct API handling by strategies is crucial. No other way to achieve strategy modularity.*
 */
-   log(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} chaintip: ${results.chaintip}`
-      + ` scoreIds: ${Object.keys(results.scores).join(',')} broadcast: ${results.broadcastIds}`);
+   log(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} resultip: ${results.chaintip}`);
 
    /* Remove received blocks (newIds set) from the pool's request list */
    for (const id of activeEvent.newIds || []) p.requestIds.delete(id);
