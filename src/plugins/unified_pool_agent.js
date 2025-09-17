@@ -68,7 +68,7 @@ export function executePoolStrategy(activeEvent, p, blocks) {
          results.broadcastIds = [newTip];
       }
    } else {
-      implementSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results);
+      executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results);
    }
 
    /* Returned scores must show the pool's selected chaintip and isHeadPath */
@@ -77,7 +77,7 @@ export function executePoolStrategy(activeEvent, p, blocks) {
    return results;
 }
 
-function implementSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results) {
+function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results) {
 /*
    Predominant selfish strategies can be modeled with two integer knobs: When to publish, and the
    level of risk/reward for the selfish chain. Selfish decisions rely on comparing two walkbacks:
