@@ -337,7 +337,7 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    }
 
    /* Tracking altTip explicitly, helps code-efficiency inside the selfish strategies module */
-   if (p.altTip !== results.altTip) p.altTip = results.altTip;
+   if (results.altTip) p.altTip = results.altTip;
    if (p.chaintip !== results.chaintip) {            // Chaintip is the head being mined by the pool
       p.chaintip = results.chaintip;
       simulateBlockTime(eventQueue, p, activeEvent.simClock);
