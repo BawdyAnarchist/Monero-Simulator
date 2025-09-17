@@ -163,8 +163,8 @@ function exitSimWorker(exit_code) {
 // -----------------------------------------------------------------------------
 
 function simulateBlockTime(eventQueue, p, simClock) {
-/* Simulated a new blockTime, whenever a pool changes chaintip.
-*/
+/* Simulated a new blockTime, whenever a pool changes chaintip.  */
+
    const nxtDifficulty = blocks[p.chaintip].nxtDifficulty;
    const lambda        = p.hashrate / Number(nxtDifficulty);  // Downgrade from BigInt
    const timeToFind    = simNoise.blockTime(lambda)();
