@@ -3,41 +3,50 @@
     "id": "HB0",
     "name": "Honest_Baseline",
     "description": "Monero's baseline existing PoW with no countermeasures",
-    "module": "./plugins/honest_scoring.js",
-    "entryPoint": "invokeStrategyH",
-    "config": { "scoringFunctions": [] }
+    "module": "./plugins/unified_pool_agent.js",
+    "entryPoint": "executePoolStrategy",
+    "config": {
+      "policy": { "honest": true, "retortPolicy": null, "k_Thresh": null },
+      "scoringFunctions": {}
+    }
   },
   {
     "id": "HS1",
     "name": "Honest_Scoring",
     "description": "Apply scoring adjustments to the difficulty of each block",
-    "module": "./plugins/honest_scoring.js",
-    "entryPoint": "invokeStrategyH",
+    "module": "./plugins/unified_pool_agent.js",
+    "entryPoint": "executePoolStrategy",
     "config": { 
-      "scoringFunctions": ["calculateDepthPenaltyTime", "calculateUncleBonusBlocks", "calculateSkewPenalty"],
-      "constants": {
-         "depthPenaltyTime":   { "k": 0.0012, "L": 0.90 },
-         "depthPenaltyBlocks": { "dummy": 0.1 },
-         "uncleBonusTime":     { "dummy": 0.1 },
-         "uncleBonusBlocks":   { "dummy": 0.1 },
-         "skewPenalty":        { "dummy": 0.1 }
+      "policy": { "honest": true, "retortPolicy": null, "k_Thresh": null },
+      "scoringFunctions": {
+         "calculateDepthPenaltyTime":   { "k": 0.0012, "L": 0.90 },
+         "calculateDepthPenaltyBlocks": { "dummy": 0.1 },
+         "calculateUncleBonusTime":     { "dummy": 0.1 },
+         "calculateUncleBonusBlocks":   { "dummy": 0.1 },
+         "calculateSkewPenalty":        { "dummy": 0.1 }
       }
     }
   },
   {
-    "id": "SR0",
+    "id": "SS0",
     "name": "Stubborn_Silent",
-    "description": "No retorts to honest publishing (silent), tolerates falling behind",
-    "module": "./plugins/selfish.js",
-    "entryPoint": "invokeStrategyS",
-    "config": { "retortPolicy": 0, "catchupTolerance": -1}
+    "description": "No retorts to honest publishing (silent). Tolerates falling behind",
+    "module": "./plugins/unified_pool_agent.js",
+    "entryPoint": "executePoolStrategy",
+    "config": {
+      "policy": { "honest": false, "retortPolicy": 0, "k_Thresh": -1 },
+      "scoringFunctions": {}
+    }
   },
   {
     "id": "SS1",
     "name": "Stubborn_Sniper",
-    "description": "Publish parity with honest chain, tolerates falling behind",
-    "module": "./plugins/selfish.js",
-    "entryPoint": "invokeStrategyS",
-    "config": { "retortPolicy": 1, "catchupTolerance": -1}
+    "description": "Publish parity with honest chain. Tolerates falling behind",
+    "module": "./plugins/unified_pool_agent.js",
+    "entryPoint": "executePoolStrategy",
+    "config": {
+      "policy": { "honest": false, "retortPolicy": 0, "k_Thresh": -1 },
+      "scoringFunctions": {}
+    }
   }
 ]
