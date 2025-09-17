@@ -116,6 +116,13 @@ async function conductChecks(pools) {
       if (typeof module[strategy.entryPoint] !== 'function')
          throw new Error(`EntryPoint '${strategy.entryPoint}' not a function in ${strategy.module}`);
    });
+   /* unified_pool_agent.js is 1st class citizen, even though technically it's a pluggable module */
+   if (strategy.module === './plugins/unified_pool_agent.js') {
+      if (strategy.config?.policy?.honest === undefined) throw new Error(
+         `Strategy Manifest for ${strategy.id} is missing config object: config.policy.honest`);
+      if (strategy.config?.scoringFunctions === undefined) throw new Error(
+         `Strategy Manifest for ${strategy.id} is missing config object: config.scoringFunctions`);
+   }
    await Promise.all(strategyChecks);
 } 
 
