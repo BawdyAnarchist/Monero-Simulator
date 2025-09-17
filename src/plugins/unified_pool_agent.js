@@ -100,10 +100,10 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    const altLength      = blocks[p.altTip].height   - ancestorHeight;  // Before activeEvent 
    const selfLength     = blocks[p.chaintip].height - ancestorHeight;  // Before activeEvent 
    const maxTipLength   = blocks[maxTip[1]].height  - ancestorHeight;  // After activeEvent
-   const addedLength    = maxTipLength - altLength;                    // Only used when RECV_OTHER
    const zeroPrimeBump  = (altLength === selfLength) ? 2 : 1;          // Leaving state 0'
 
    let k_New;
+   let addedLength = 0;                              // Relevant only for RECV_OTHER
    if (activeEvent.action === 'RECV_OWN') {          // Unavoidable switching logic
       k_New = 1 + selfLength - altLength;            // Extend the selfish branch
       results.chaintip  = newTip;
@@ -112,7 +112,11 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       k_New = selfLength - maxTipLength;             // Extend the honest branch 
       results.chaintip = p.chaintip;
       results.altTip   = maxTip[1]                   // Must update the altTip
+      addedLength      = maxTipLength - altLength;
    }
+
+   log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${k_New} sL: ${selfLength}`
+      + `aL: ${altLength} addL: ${addedLength} mTL: ${maxTipLength} anc: ${altAncestor}`);
 /*
    Equation explanation: Outcome > 0 indicates logic will be triggered.
       (altLength + addedLength):  Selfish pool never publishes if honest fork has 0 blocks
@@ -124,6 +128,9 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    const abandonThresh = (altLength + addedLength) * (Math.min(0, k_Thresh) - k_New);
    const claimThresh   = (altLength + addedLength) * (Math.max(0, k_Thresh) - k_New + zeroPrimeBump);
    const retortCount   = Math.min(retort * addedLength, addedLength + 1);
+
+   log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} `
+      + `abandon: ${abandonThresh} claim: ${claimThresh} retort: ${retortCount}`);
 
    /* If abandon was triggered, ignore claimThreshold, and adopt the honest branch */
    if (abandonThresh > 0) {
