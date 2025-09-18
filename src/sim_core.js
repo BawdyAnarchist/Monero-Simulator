@@ -56,11 +56,10 @@ function makeNoiseFunctions() {
    Even under normal network, tail-end ping-time spikes are common. They're part of the model.
 */
    /* LogNormal implementation for ping and bandwidth. P2H modeled as 2x worse than P2P */
-   const sigma   = Math.sqrt(Math.log(1 + CV*CV));                // pool-pool (P2P)
+   const sigma   = Math.sqrt(Math.log(1 + CV*CV));                // pool-to-pool (P2P)
    const pingMu  = Math.log(PING / 1e3) - 0.5 * sigma * sigma; 
-   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // Pool-hasher (P2H) penalty
-   const pingMu2 = Math.log(PING / 1e3) - 0.5 * sigma2 * sigma2;  // One-way, and conv ms -> sec
-   const pingMu2 = Math.log(PING / 5e2) - 0.5 * sigma2 * sigma2;  // P2H assumed slower than P2P
+   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // Pool-to-hasher (P2H) penalty
+   const pingMu2 = Math.log(PING / 5e2) - 0.5 * sigma2 * sigma2;  // One-way. Convert ms -> sec
    const blockTxTime = BLOCK_SIZE / (MBPS * 1024 / 8)             // Convert Mbps to KB/sec
    const bwMu    = Math.log(blockTxTime) - 0.5 * sigma * sigma;
 
@@ -68,18 +67,24 @@ function makeNoiseFunctions() {
    const pSpikeP2P = 0.01 * (1 + CV);
    const pSpikeP2H = 0.03 * (1 + CV);
    const spBase    = PING / 1e3; 
-   const spA1      = 0.10 * spBase, spB1 = 0.50 * spBase;         // P2P: +10–50% of OWD
-   const spA2      = 0.30 * spBase, spB2 = 1.20 * spBase;         // P2H: +30–120% of OWD
+   const spA1      = 0.10 * spBase;
+   const spB1      = 0.50 * spBase;         // P2P: +10–50% of OWD
+   const spA2      = 0.30 * spBase;
+   const spB2      = 1.20 * spBase;         // P2H: +30–120% of OWD
 
    const logNormal = randomLogNormal.source(rng);  // Create generator once (more efficient)
 
    /* Ping was used in .env for familiarity, but the sim uses One-Way-Delay (owdP2P, owdP2H) */
    const baseP2P = logNormal(pingMu,  sigma);
    const baseP2H = logNormal(pingMu2, sigma2);
+
    const owdP2P  = () => rng() < pSpikeP2P
-      ? baseP2P() + (spA1 + (spB1 - spA1) * rng()) : baseP2P()
+      ? baseP2P() + (spA1 + (spB1 - spA1) * rng())
+      : baseP2P()
+
    const owdP2H  = () => rng() < pSpikeP2H
-      ? baseP2H() + (spA2 + (spB2 - spA2) * rng()) : baseP2H()
+      ? baseP2H() + (spA2 + (spB2 - spA2) * rng())
+      : baseP2H()
 
    return {
       owdP2P:    owdP2P,                         // One-Way-Delay, Pool-to-Pool
