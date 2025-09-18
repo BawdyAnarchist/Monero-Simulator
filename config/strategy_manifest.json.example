@@ -4,9 +4,9 @@
     "name": "Honest_Baseline",
     "description": "Monero's baseline existing PoW with no countermeasures",
     "module": "./plugins/unified_pool_agent.js",
-    "entryPoint": "executePoolStrategy",
+    "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": true, "retortPolicy": null, "k_Thresh": null },
+      "policy": { "honest": true, "k_Thresh": null, "retortPolicy": null },
       "scoringFunctions": {}
     }
   },
@@ -15,9 +15,9 @@
     "name": "Honest_Scoring",
     "description": "Apply scoring adjustments to the difficulty of each block",
     "module": "./plugins/unified_pool_agent.js",
-    "entryPoint": "executePoolStrategy",
+    "entryPoint": "invokePoolAgent",
     "config": { 
-      "policy": { "honest": true, "retortPolicy": null, "k_Thresh": null },
+      "policy": { "honest": true, "k_Thresh": null, "retortPolicy": null },
       "scoringFunctions": {
          "calculateDepthPenaltyTime":   { "k": 0.0012, "L": 0.90 },
          "calculateDepthPenaltyBlocks": { "dummy": 0.1 },
@@ -28,24 +28,35 @@
     }
   },
   {
-    "id": "SS0",
-    "name": "Stubborn_Silent",
-    "description": "No retorts to honest publishing (silent). Tolerates falling behind",
+    "id": "SL0",
+    "name": "Lead_Stubborn",
+    "description": "Maintain public head contention. eprint.iacr.org/2015/796.pdf", 
     "module": "./plugins/unified_pool_agent.js",
-    "entryPoint": "executePoolStrategy",
+    "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": false, "retortPolicy": 0, "k_Thresh": -1 },
+      "policy": { "honest": false, "k_Thresh": 0, "retortPolicy": 1 },
       "scoringFunctions": {}
     }
   },
   {
-    "id": "SS1",
-    "name": "Stubborn_Sniper",
-    "description": "Publish parity with honest chain. Tolerates falling behind",
+    "id": "SC0",
+    "name": "Selfish_Classic",
+    "description": "Maintain public lead. Eyal-Sirer arxiv.org/pdf/1311.0243",
     "module": "./plugins/unified_pool_agent.js",
-    "entryPoint": "executePoolStrategy",
+    "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": false, "retortPolicy": 0, "k_Thresh": -1 },
+      "policy": { "honest": false, "k_Thresh": 1, "retortPolicy": 2 },
+      "scoringFunctions": {}
+    }
+  },
+  {
+    "id": "SS0",
+    "name": "Stubborn_Silent",
+    "description": "No retort to honest publish events (silent)",
+    "module": "./plugins/unified_pool_agent.js",
+    "entryPoint": "invokePoolAgent",
+    "config": {
+      "policy": { "honest": false, "k_Thresh": 0, "retortPolicy": 0 },
       "scoringFunctions": {}
     }
   }
