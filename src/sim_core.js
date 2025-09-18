@@ -57,16 +57,17 @@ function makeNoiseFunctions() {
 */
    /* LogNormal implementation for ping and bandwidth. P2H modeled as 2x worse than P2P */
    const sigma   = Math.sqrt(Math.log(1 + CV*CV));                // pool-pool (P2P)
-   const pingMu  = Math.log(PING / 2e3) - 0.5 * sigma * sigma;    // One-way, and conv ms -> sec
-   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // pool-hasher (P2H)
+   const pingMu  = Math.log(PING / 1e3) - 0.5 * sigma * sigma; 
+   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // Pool-hasher (P2H) penalty
    const pingMu2 = Math.log(PING / 1e3) - 0.5 * sigma2 * sigma2;  // One-way, and conv ms -> sec
+   const pingMu2 = Math.log(PING / 5e2) - 0.5 * sigma2 * sigma2;  // P2H assumed slower than P2P
    const blockTxTime = BLOCK_SIZE / (MBPS * 1024 / 8)             // Convert Mbps to KB/sec
    const bwMu    = Math.log(blockTxTime) - 0.5 * sigma * sigma;
 
    /* Ping spike model: Rare additive delays to mimic burstiness. Scale by PING and CV */
    const pSpikeP2P = 0.01 * (1 + CV);
    const pSpikeP2H = 0.03 * (1 + CV);
-   const spBase    = PING / 2e3;
+   const spBase    = PING / 1e3; 
    const spA1      = 0.10 * spBase, spB1 = 0.50 * spBase;         // P2P: +10–50% of OWD
    const spA2      = 0.30 * spBase, spB2 = 1.20 * spBase;         // P2H: +30–120% of OWD
 
