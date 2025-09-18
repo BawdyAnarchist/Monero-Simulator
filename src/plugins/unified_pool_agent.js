@@ -1,10 +1,10 @@
-/*    
+/*
    Strategy modules isolate a pool's decision making process from the functionally-oriented
    sim_core. Meaning that core logic for the behavior of any given pool, must be simulated here.
    Checking for branch/head validity, requesting missing blocks, determining if a received block
    links ancestors that were received out-of-order, general and robust ability to reorganize,
    determining whether or not to broadcast a block, and in some cases, timestamp manipulation.
-*/    
+*/
 /*
    This strategy is a robustly generalized simulation of multiple pool behaviors:
      - Honest baseline reference (Monero's current PoW)
@@ -21,7 +21,7 @@ import * as scoringFunctions from './scoring_functions.js';
 let log = () => {};
 export function setLog(logFunc) { log = logFunc; }
 
-export function executePoolStrategy(activeEvent, p, blocks) {
+export function invokePoolAgent(activeEvent, p, blocks) {
 /* Entry point from the sim_core, flow coordinator for pool behavior, returns the API contract */
    log(`executeStrategy:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
 
@@ -79,58 +79,52 @@ export function executePoolStrategy(activeEvent, p, blocks) {
 
 function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results) {
 /*
-   Predominant selfish strategies can be modeled with two integer knobs: When to publish, and the
-   level of risk/reward for the selfish chain. Selfish decisions rely on comparing two walkbacks:
-   A) From altTip (honest tip) to the shared ancestor; and B) selfish tip to the shared ancestor.
-   A clever equation is used to avoid what would otherwise be messy switching logic. 
+   The predominant selfish strategies can be generalized to two knobs: kThresh and retortPolicy.
+   Combined with `state` (derived from examining the honest/selfish common ancestor), a large range
+   of SM behavior can be expressed in 3 simple policy equations, avoiding complex switching logic.
 */
    log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
-   if (!p.altTip) p.altTip = p.chaintip;                // Should only happen once, on first call
-   if (maxTip[1] === null) maxTip[1] = p.altTip;        // Guard null maxTip with altTip id 
 
-   const retort   = p.config.policy.retortPolicy;  // Silent vs equal-fork vs keep-lead
-   const k_Thresh = p.config.policy.k_Thresh;      // Key inflection point after gaining a lead
+   if (!p.altTip) p.altTip = p.chaintip;                // Should only happen once, on first call
+   if (maxTip[1] === null) maxTip[1] = p.altTip;        // Guard null maxTip with altTip id
+
+   const retortPolicy = p.config.policy.retortPolicy;  // Silent vs equal-fork vs keep-lead
+   const kThresh      = p.config.policy.kThresh;       // Key inflection point after gaining a lead
 
    /* Discover the shared selfish ancestor to the altTip via prevID walkback */
-   let altAncestor = p.altTip;
-   while (!p.scores[altAncestor].isHeadPath) altAncestor = blocks[altAncestor].prevId; 
+   let commonAncestor = p.altTip;
+   while (!p.scores[commonAncestor].isHeadPath) commonAncestor = blocks[commonAncestor].prevId;
 
    /* Calculate lengths of the honest vs selfish branches */
-   const ancestorHeight = blocks[altAncestor].height;
-   const altLength      = blocks[p.altTip].height   - ancestorHeight;  // Before activeEvent 
-   const selfLength     = blocks[p.chaintip].height - ancestorHeight;  // Before activeEvent 
+   const ancestorHeight = blocks[commonAncestor].height;
+   const altLength      = blocks[p.altTip].height   - ancestorHeight;  // Before activeEvent
+   const selfLength     = blocks[p.chaintip].height - ancestorHeight;  // Before activeEvent
    const maxTipLength   = blocks[maxTip[1]].height  - ancestorHeight;  // After activeEvent
    const zeroPrimeBump  = (altLength === selfLength) ? 2 : 1;          // Leaving state 0'
 
-   let k_New;
+   let kNew;
    let addedLength = 0;                              // Relevant only for RECV_OTHER
    if (activeEvent.action === 'RECV_OWN') {          // Unavoidable switching logic
-      k_New = 1 + selfLength - altLength;            // Extend the selfish branch
+      kNew = 1 + selfLength - altLength;             // Extend the selfish branch
       results.chaintip  = newTip;
       results.timestamp = scores[newTip].localTime;
    } else {
-      k_New = selfLength - maxTipLength;             // Extend the honest branch 
+      kNew = selfLength - maxTipLength;              // Extend the honest branch
       results.chaintip = p.chaintip;
       results.altTip   = maxTip[1]                   // Must update the altTip
       addedLength      = Math.max(0, maxTipLength - altLength);  // No negatives (pollutes equation)
    }
 
-   log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${k_New} sL: ${selfLength}`
-      + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${altAncestor}`);
-/*
-   Equation explanation: Outcome > 0 indicates logic will be triggered.
-      (altLength + addedLength):  Selfish pool never publishes if honest fork has 0 blocks
-      Math.min(0, k_Thresh): Unless k_Thresh is explicitly negative, 0 is a hard abandonment floor
-      Math.max(0, k_Thresh):
-         k_Thresh < 0 tolerates falling behind; but should still claim the win on 0'+1 (won the race)
-      zeroPrimeBump:  Required adjustment for biasing the transition from 0'+1
-*/
-   const abandonThresh = (altLength + addedLength) * (Math.min(0, k_Thresh) - k_New);
-   const claimThresh   = (altLength + addedLength) * (Math.max(0, k_Thresh) - k_New + zeroPrimeBump);
-   const retortCount   = Math.min(retort * addedLength, addedLength + 1);
+   log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${kNew} sL: ${selfLength}`
+      + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${commonAncestor}`);
+
+   /* Core of the generalized SM logic. For rationale and details see: docs/SELFISH_TUNING.md */
+   const abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh) - kNew);
+   const claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
+   const retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
 
    log(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} `
-      + `abandon: ${abandonThresh} claim: ${claimThresh} retort: ${retortCount}`);
+      + `abandon: ${abandonThresh} claim: ${claimThresh} retortCnt: ${retortCount}`);
 
    /* If abandon was triggered, ignore claimThreshold, and adopt the honest branch */
    if (abandonThresh > 0) {
@@ -143,7 +137,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       let id = results.chaintip;
       while (!blocks[id].broadcast) {
          unbroadcast.push(id);
-         id = blocks[id].prevId; 
+         id = blocks[id].prevId;
       }
       unbroadcast.reverse();
    }
@@ -279,7 +273,7 @@ function propagateHeadPathToScores(activeEvent, p, blocks, scores, ancestorId, r
 */
    log(`propagateHeadPath: ${activeEvent.simClock.toFixed(7)} ${p.id} ancestor: ${ancestorId}`);
 
-   /* p.scores reflects which chaintip the pool selected upon first visibility of the block */ 
+   /* p.scores reflects which chaintip the pool selected upon first visibility of the block */
    for (const id in scores) if (!scores[id].chaintip) scores[id].chaintip = results.chaintip;
 
    /* Walkback until: A) normal extension of chaintip, or B) id = ancestor (indicating reorg) */
