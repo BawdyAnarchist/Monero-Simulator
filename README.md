@@ -3,17 +3,15 @@
 
 This codebase implements a discrete-event framework for analyzing miner PoW dynamics in Monero, via Monte Carlo simulations. The strategy logic governing miner/pool behavior has been modularized into a pluggable system with a straightforward manifest and pool list. The purpose is to create a reproducible environment for evaluating the security and secondary effects of proposed PoW modifications.
 
-*NOTE: Transitioning to beta stage. Docs arent fully up to date. Use the source, Luke. (it's well commented).*
-
 ### Features
-- **Multi-Pool Simulation:**  Set strategy and hashrate for an arbitrary number of pools 
-  - config/pools.json
-- **Pluggable Strategies:**  Simple API to implement custom mining strategies
-  - config/strategy_manifest.json
+- **Multi-Pool Simulation:**  Set strategy and hashrate for an arbitrary number of pools
+*config/pools.json*
+- **Pluggable Pool Agents:**  Simple API to implement custom mining strategies
+*config/strategy_manifest.json*
 - **Stochastic Network Model:**  Tunable parameters with reproducible seed
-  - .env
+*.env*
 - **Multi Threaded:** Run isolated rounds in parallel
-- **Accurate Difficulty Adjustment:**  Monero's exact algo, bootstrapped with historical data 
+- **Accurate Difficulty Adjustment:**  Monero's exact algo, bootstrapped with historical data
 
 Refer to `config/README.md` for a quick-reference on pools and strategies configuration. For an API to plug-in a custom miner strategy, see `docs/STRATEGY_API.md`
 
@@ -27,5 +25,5 @@ npm install dotenv d3-random p-limit tinyqueue
 ```
 npm start
 ```
-*Results are gzip csv, written to the `data/` directory*   
-3. Review `.env` and `config/` for custom configuration   
+Results are gzip csv in the `data/` directory
+Review `.env` and `config/` for custom configuration

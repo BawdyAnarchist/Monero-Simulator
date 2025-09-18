@@ -1,16 +1,16 @@
 
 ---
 
-## Strategy Plugin API Reference
+## Pool Agent Plugin API Reference
 
-Strategy modules define a pool's behavior in response to network events. The simulation core (`sim_core.js`) calls the registered `entryPoint` function for a strategy, passing it the current state. The strategy must then return an object instructing the core on how to proceed.
+Agent modules define a pool's behavior in response to network events. The simulation core (`sim_core.js`) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
 
 ### Function Signature
 
 A strategy's entry point must conform to the following signature:
 ```javascript
-function invokeStrategy(activeEvent, pool, blocks) {
-  // ... strategy logic ...
+function executePoolAgent(activeEvent, pool, blocks) {
+  // ... agent logic ...
   return { chaintip, timestamp, scores, broadcastId };
 }
 ```
@@ -27,25 +27,29 @@ The entry point receives three objects as arguments:
 | `pool` | A read-only object representing the current state of the pool. |
 | `blocks` | A read-only object containing the full state of all known blocks. |
 
+See the **Detailed Parameter Specifications** near the bottom for details.
+
 > **IMPORTANT: State Immutability**
-> The `pool` and `blocks` objects are direct references to the global simulation state. **Do not mutate them directly.** Modifying these objects will corrupt the simulation state and produce invalid results. All state changes must be communicated through the `return` object.
+> The `pool` and `blocks` objects are direct references to the global simulation state. **Do not mutate them directly.** Modifying these objects can corrupt the simulation state and produce invalid results. All state changes must be communicated through the `return` object.
 
 ---
 
 ### Return Value (Outputs)
 
-The strategy function **MUST** return an object with the following properties.
+The strategy function **MUST** return an object with the following properties (they may be 'null').
 
 | Property | Type | Description |
 |---|---|---|
-| `chaintip` | string | The `blockId` of the block the pool considers its new chain tip after processing the event. |
-| `timestamp` | number \| null | **On `CREATE`:** The Unix timestamp for the new block. A strategy can manipulate this. <br> **On `RECV`:** Must be `null`, as the received block already has a timestamp. |
-| `scores` | object \| null | **On `CREATE`:** Must be `null`. The new block's score is handled by the sim core. <br> **On `RECV`:** An object containing score entries for any newly received blocks. See `Scores Specification` below. |
-| `broadcastId` | string \| null | The `blockId` of a block to broadcast. If the strategy decides not to broadcast, this must be `null`. |
+| `chaintip` | string | `blockId` that the pool considers its new chaintip after processing the event. |
+| `altTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip after processing the event. |
+| `timestamp` | number \| null | **On `CREATE`:** The Unix timestamp for the new block. A strategy can manipulate this. <br> **On `RECV_OTHER`:** Must be `null`, as the received block already has a timestamp. |
+| `scores` | object | Unique view of what the pool believes about the block/network. See `Scores Specification`. |
+| `requestIds` | Set() \| null | `blockIds` the pool identifies as missing, after processing the `activeEvent`. |
+| `broadcastId` | array \| null | `blockIds` to broadcast (or not), based on the pool's strategy. |
 
 #### Scores Specification
 
-When handling a `RECV` event, the strategy must score the incoming block(s). The `scores` property of the return object should be an object where each key is a `blockId` and the value is a score entry object. You can use the existing `pool.scores` object for read-only reference.
+When handling a `RECV_OTHER` event, the strategy must score the incoming block(s). The `scores` property of the return object should be an object where each key is a `blockId` and the value is a score entry object. You can use the existing `pool.scores` object for read-only reference.
 
 *Example `scores` object:*
 ```json
@@ -60,10 +64,12 @@ When handling a `RECV` event, the strategy must score the incoming block(s). The
 *Score Entry Object:*
 | Property | Type | Description |
 |---|---|---|
+| `simClock` | float | A copy of `activeEvent.simClock`. Crucial for event ordering. |
 | `localTime` | number | The pool's belief about unix NTP when it received the block header. |
 | `diffScore` | BigInt | The raw block difficulty, potentially adjusted by a scoring mechanism. |
 | `cumDiffScore` | BigInt | The cumulative difficulty score from the genesis block to this one. |
-| `isHeaviest` | boolean | The pool's belief on whether this block is on the heaviest chain. |
+| `isHeadPath` | boolean | The pool's belief on whether this block is on the current chaintip path. |
+| `chaintip` | string | The pool's belief about which blockId was the chaintip after processing the event. |
 
 ---
 
@@ -73,11 +79,11 @@ When handling a `RECV` event, the strategy must score the incoming block(s). The
 
 | Property | Type | Description |
 |---|---|---|
-| `simClock` | number | The global simulation timestamp for this event (high-precision float). |
+| `simClock` | float | The global simulation timestamp for this event (high-precision float). |
 | `poolId` | string | The ID of the pool processing the event. |
-| `action` | string | The type of event: `'CREATE_BLOCK'` or `'RECV_BLOCK'`. |
-| `chaintip` | string | The `blockId` that is being extended by the event. |
-| `newTip` | string | The new `blockId` that attempts to extend the `chaintip`. |
+| `action` | string | The type of event: `'HASHER_FIND'` \| `'RECV_OWN'` \| `'RECV_OTHER'`. |
+| `chaintip` | string \|null | `blockId` of the chaintip before processing the event. |
+| `newIds` | array \|null | New `blockIds` that need to be processed by a pool. |
 
 #### `pool` Object (Read-Only)
 
@@ -89,7 +95,10 @@ When handling a `RECV` event, the strategy must score the incoming block(s). The
 | `hashrate` | number | The pool's absolute hashrate. |
 | `ntpDrift` | number | A constant time offset (in seconds) applied at simulation start. |
 | `chaintip` | string | The pool's current chaintip `blockId` *before* processing `activeEvent`. |
-| `scores` | object | A dictionary of all previously scored blocks, keyed by `blockId`. |
+| `altTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip. |
+| `requestIds` | Set() \| null | `blockIds` the pool has requested from the network, but not yet received. |
+| `unscored` | Map(number, string)<br> \| null | `(height, blockId)` the pool has received, but can't yet score. |
+| `config` | object | Pool agent specification loaded from `strategy_manifest.json` |
 
 #### `blocks` Object (Read-Only)
 
@@ -97,9 +106,9 @@ This is a global dictionary of all blocks, keyed by `blockId`. Each entry is a b
 
 | Property | Type | Description |
 |---|---|---|
-| `simClock` | number | The global simulation time when the block was created. |
+| `simClock` | number | Global simulation time when the block was created. |
 | `height` | number | The block height. |
-| `pool` | string | The ID of the pool that mined the block. |
+| `pool` | string | ID of the pool that mined the block. |
 | `blockId` | string | Unique block identifier: `height_pool`. |
 | `prevId` | string | The `blockId` of the parent block. |
 | `timestamp` | number | The block's header timestamp (Unix seconds). |
