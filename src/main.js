@@ -37,7 +37,7 @@ const POOLS      = JSON.parse(fs.readFileSync(path.join(
 /* Define all .env constants here, so we can check them (not null) */
 const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
 const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
-const THREADS    = Number(process.env.THREADS);
+const WORKERS    = Number(process.env.WORKERS);
 const MAX_RAM    = Number(process.env.MAX_RAM);
 
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
@@ -90,7 +90,7 @@ async function conductChecks(pools) {
    if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
 
    /* Check for presence of critical environment variables */
-   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'THREADS', 'NETWORK_HASH',
+   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'WORKERS', 'NETWORK_HASH',
       'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
       'NTP_STDEV', 'PING', 'MBPS', 'CV', 'BLOCK_SIZE', 'SEED'];
    for (const v of envVars) {
@@ -341,7 +341,7 @@ async function main() {
    initializeResultsStorage(blocks, blocks[startTip], hScore, pools); // Requires pools/blocks fields
 
    /* Set thread limit, depth, and prepare the worker call */ 
-   const limit    = pLimit(THREADS || 2);
+   const limit    = pLimit(WORKERS || 2);
    const simDepth = blocks[startTip].simClock + (SIM_DEPTH * 3600);
    const jobs = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
       return { idx , promise: limit(() =>
