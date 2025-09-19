@@ -18,8 +18,10 @@
 import * as scoringFunctions from './scoring_functions.js';
 
 /* Re-use the same log from sim_core, populated directly via function export (to sim_core) */
-let log = () => {};
+let log  = () => {};
+let log2 = () => {};
 export function setLog(logFunc) { log = logFunc; }
+export function setLog2(logFunc2) { log2 = logFunc2; }
 
 export function invokePoolAgent(activeEvent, p, blocks) {
 /* Entry point from the sim_core, flow coordinator for pool behavior, returns the API contract */
