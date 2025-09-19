@@ -44,7 +44,7 @@ const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
 const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
 const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
-const NETWORK_HASH = Number(process.env.NETWORK_HASH);
+const NETWORK_HASHRATE = Number(process.env.NETWORK_HASH);
 
 const NTP_STDEV  = Number(process.env.NTP_STDEV);
 const PING       = Number(process.env.PING);
