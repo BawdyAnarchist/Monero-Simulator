@@ -25,7 +25,7 @@ export function setLog2(logFunc2) { log2 = logFunc2; }
 
 export function invokePoolAgent(activeEvent, p, blocks) {
 /* Entry point from the sim_core, flow coordinator for pool behavior, returns the API contract */
-   log(`executeStrategy:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
+   log(`invokePoolAgent:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
 
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
 
