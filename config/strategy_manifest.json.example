@@ -6,7 +6,7 @@
     "module": "./plugins/unified_pool_agent.js",
     "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": true, "k_Thresh": null, "retortPolicy": null },
+      "policy": { "honest": true, "kThresh": null, "retortPolicy": null },
       "scoringFunctions": {}
     }
   },
@@ -17,7 +17,7 @@
     "module": "./plugins/unified_pool_agent.js",
     "entryPoint": "invokePoolAgent",
     "config": { 
-      "policy": { "honest": true, "k_Thresh": null, "retortPolicy": null },
+      "policy": { "honest": true, "kThresh": null, "retortPolicy": null },
       "scoringFunctions": {
          "calculateDepthPenaltyTime":   { "k": 0.0012, "L": 0.90 },
          "calculateDepthPenaltyBlocks": { "dummy": 0.1 },
@@ -34,7 +34,7 @@
     "module": "./plugins/unified_pool_agent.js",
     "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": false, "k_Thresh": 0, "retortPolicy": 1 },
+      "policy": { "honest": false, "kThresh": 0, "retortPolicy": 1 },
       "scoringFunctions": {}
     }
   },
@@ -45,7 +45,7 @@
     "module": "./plugins/unified_pool_agent.js",
     "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": false, "k_Thresh": 1, "retortPolicy": 2 },
+      "policy": { "honest": false, "kThresh": 1, "retortPolicy": 2 },
       "scoringFunctions": {}
     }
   },
@@ -56,7 +56,7 @@
     "module": "./plugins/unified_pool_agent.js",
     "entryPoint": "invokePoolAgent",
     "config": {
-      "policy": { "honest": false, "k_Thresh": 0, "retortPolicy": 0 },
+      "policy": { "honest": false, "kThresh": 0, "retortPolicy": 0 },
       "scoringFunctions": {}
     }
   }
