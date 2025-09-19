@@ -55,41 +55,32 @@ function makeNoiseFunctions() {
    distinct network profiles. Hasher<-->Pool is assumed to be about 2x worse than pool<-->pool.
    Even under normal network, tail-end ping-time spikes are common. They're part of the model.
 */
-   /* LogNormal implementation for ping and bandwidth. P2H modeled as 2x worse than P2P */
-   const sigma   = Math.sqrt(Math.log(1 + CV*CV));                // pool-to-pool (P2P)
-   const pingMu  = Math.log(PING / 1e3) - 0.5 * sigma * sigma; 
-   const sigma2  = Math.sqrt(Math.log(1 + CV*CV*2*2));            // Pool-to-hasher (P2H) penalty
-   const pingMu2 = Math.log(PING / 5e2) - 0.5 * sigma2 * sigma2;  // One-way. Convert ms -> sec
-   const blockTxTime = BLOCK_SIZE / (MBPS * 1024 / 8)             // Convert Mbps to KB/sec
-   const bwMu    = Math.log(blockTxTime) - 0.5 * sigma * sigma;
+   /* Ping was used in .env for familiarity, but sim uses one-way-delay (owd) */
+   const ping    = PING / 1e3;                                // ms -> sec (sim consistency)
+   const sigma   = Math.sqrt(Math.log(1 + CV*CV));            // pool-to-pool (P2P)
+   const pingMu  = Math.log(ping) - 0.5 * sigma * sigma;      // One-way latency
+   const sigma2  = Math.sqrt(Math.log(1 + CV*CV));            // Pool-to-hasher (P2H) penalty
+   const pingMu2 = Math.log(ping*2) - 0.5 * sigma2 * sigma2;  // One-way latency
+   const txTime  = BLOCK_SIZE / (MBPS * 1024 / 8)             // Block tx time. Mbps -> KB/sec
+   const txMu    = Math.log(txTime) - 0.5 * sigma * sigma;
+
+   /* Seed generator once, then call it later (more efficient) */
+   const logNormal = randomLogNormal.source(rng);
 
    /* Ping spike model: Rare additive delays to mimic burstiness. Scale by PING and CV */
-   const pSpikeP2P = 0.01 * (1 + CV);
-   const pSpikeP2H = 0.03 * (1 + CV);
-   const spBase    = PING / 1e3; 
-   const spA1      = 0.10 * spBase;
-   const spB1      = 0.50 * spBase;         // P2P: +10–50% of OWD
-   const spA2      = 0.30 * spBase;
-   const spB2      = 1.20 * spBase;         // P2H: +30–120% of OWD
+   const spikeProb   = (base_pct) => base_pct - 0.015 + (0.01 * Math.pow(1 + CV, 2));  // magic
+   const spikeAmount = (min, max) => ping * (min + (max - min) * rng());      // min-max spike %
 
-   const logNormal = randomLogNormal.source(rng);  // Create generator once (more efficient)
-
-   /* Ping was used in .env for familiarity, but the sim uses One-Way-Delay (owdP2P, owdP2H) */
+   /* One-way-delay probability distribution functions. 10-50% P2P, 20-100% P2H on ping spike */
    const baseP2P = logNormal(pingMu,  sigma);
    const baseP2H = logNormal(pingMu2, sigma2);
-
-   const owdP2P  = () => rng() < pSpikeP2P
-      ? baseP2P() + (spA1 + (spB1 - spA1) * rng())
-      : baseP2P()
-
-   const owdP2H  = () => rng() < pSpikeP2H
-      ? baseP2H() + (spA2 + (spB2 - spA2) * rng())
-      : baseP2H()
+   const owdP2P  = () => rng() < spikeProb(0.01) ? baseP2P() + spikeAmount(0.1, 0.5) : baseP2P();
+   const owdP2H  = () => rng() < spikeProb(0.04) ? baseP2H() + spikeAmount(0.2, 1.0) : baseP2H();
 
    return {
-      owdP2P:    owdP2P,                         // One-Way-Delay, Pool-to-Pool
-      owdP2H:    owdP2H,                         // One-Way-Delay, Pool-to-Hasher
-      transTime: logNormal(bwMu, sigma),         // Time to send block, not including OWD
+      owdP2P:    owdP2P,                             // One-Way-Delay, Pool-to-Pool
+      owdP2H:    owdP2H,                             // One-Way-Delay, Pool-to-Hasher
+      transTime: logNormal(txMu, sigma),             // Time to send block, not including OWD
       blockTime: randomExponential.source(rng),
    }
 }
