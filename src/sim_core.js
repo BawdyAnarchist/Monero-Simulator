@@ -93,7 +93,8 @@ async function makeStrategiesFunctions() {
    let strategies = Object.create(null);
    for (const strategy of MANIFEST) {
       const module = await import(path.resolve(__dirname, strategy.module));
-      if (typeof module.setLog === 'function') module.setLog(log);   // Inject log into strategy
+      if (typeof module.setLog  === 'function') module.setLog(log);    // Inject log into pool agent
+      if (typeof module.setLog2 === 'function') module.setLog2(log2);  // Inject log2 into pool agent
       const entryPoint = strategy.entryPoint;
       strategies[strategy.id] = module[entryPoint];  // Populate strategies with id and function
    }
