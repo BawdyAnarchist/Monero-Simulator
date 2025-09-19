@@ -1,4 +1,7 @@
-// src/config.js
+/* 
+   Copies the essential env and config files, formats them, and makes env available to main.js
+*/
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
