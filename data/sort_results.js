@@ -1,3 +1,7 @@
+/*
+   `results_scores.csv.gz` is sorted by poolId. Use this script to sort it by simClock instead
+*/
+
 import fs from 'fs';
 import zlib from 'zlib';
 import readline from 'readline';
