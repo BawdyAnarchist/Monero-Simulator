@@ -68,14 +68,18 @@ const scoreBuffer = [];
 // Troubleshooting stanza. Leave for now in case it's needed later. Shows open processes
 const activeProcessesLog = (() => {
    const { resourceUsage } = process;
-   console.log(`main() activeHandles:`,  new Date().toLocaleTimeString(), process._getActiveHandles());
-   console.log(`main() activeRequests:`, new Date().toLocaleTimeString(), process._getActiveRequests());
+   console.log(`main() activeHandles:`,  localeNow(), process._getActiveHandles());
+   console.log(`main() activeRequests:`, localeNow(), process._getActiveRequests());
 });
 
 
 // -----------------------------------------------------------------------------
 // SECTION 2: GENERIC HOUSEKEEPING HELPERS
 // -----------------------------------------------------------------------------
+
+function localeNow() {
+   return new Date().toLocaleTimeString();
+}
 
 async function conductChecks(pools) {
    /* Checks when running with logging */
@@ -347,7 +351,7 @@ async function main() {
       return { idx , promise: limit(() =>
          runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)) };
    });
-   console.log('Environment checks good, starting sim rounds ...', new Date().toLocaleTimeString());
+   console.log('Environment checks good, starting sim rounds ...', localeNow());
 
    /* Await each job’s completion (order of resolution is not important) */
    let completedJobs = 0;
@@ -356,8 +360,8 @@ async function main() {
          const { pools: poolsResults, blocks: blocksResults,
                  infoLog: infoLog, probeLog: probeLog } = await promise;
          if (++completedJobs === jobs.length) console.log('Rounds complete. Waiting on disk ...');
-         if (enableLog)  fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${infoLog}\n`);
-         if (enableLog2) fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${probeLog}\n`);
+         if (enableLog)  fs.writeFileSync(LOG,  `${localeNow()}, WORKER ${idx}, LOG\n${infoLog}\n`);
+         if (enableLog2) fs.writeFileSync(LOG2, `${localeNow()}, WORKER ${idx}, LOG\n${probeLog}\n`);
          await recordResultsToCSV(idx, poolsResults, blocksResults);
       } catch (error) {
          console.error(`FAILURE on round: ${idx}`);
@@ -370,7 +374,7 @@ async function main() {
    }
    console.log('Closing streams ...');
    await gracefulShutdown();
-   console.log('Sim complete. Exiting at:', new Date().toLocaleTimeString());
+   console.log('Sim complete. Exiting at:', localeNow());
 }
 
 process.once('SIGINT', async () => {   // Callbacks for signal exits
