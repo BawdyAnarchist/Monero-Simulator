@@ -32,18 +32,18 @@ High level overview of the environment and runtime.
 ---
 
 ## Runtime Commands
-Command details and options are defined in *`package.json`*
+Command details and options are defined in [package.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/package.json)    
 
-**`npm start`:** Complete a full simulation run based on env and config. Delivers results to the `data/` directory.   
+**`npm start`:** Complete a full simulation run based on env and config. Delivers results to the [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data) directory.    
 
-**`npm run log`:** Same as 'npm start', but log the primary operations internal to each sim-step event as they're queued up by the engine. Good for basic verification and isolating a failure location. Tagged inline via `log()` function. Output: *`logs/info.log`*.    
+**`npm run log`:** Same as 'npm start', but log the primary operations internal to each sim-step event as they're queued up by the engine. Good for basic verification and isolating a failure location. Tagged inline via `log()` function. Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
 
-**`npm run log:probe`:**  A secondary log with no output other than what you explicitly inline into the code. Useful for generating verification checks data, pinpoint probing of sim/pool behaviors, and deep troubleshooting. Usage: Deploy inline `log2()` lines. Output: *`logs/probe.log`*.   
+**`npm run log:probe`:**  A secondary log with no output other than what you explicitly inline into the code. Useful for generating verification checks data, pinpoint probing of sim/pool behaviors, and deep troubleshooting. Usage: Deploy inline `log2()` lines. Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
 
 **`npm run lint`:**  A very basic eslint setup.   
 
 > Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
-The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* and *`unified_pool_agent.js`*.
+The functions `log()` and `log2()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)   
 
 ---
 
@@ -57,27 +57,27 @@ The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* an
 
 **SIM_ROUNDS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- The number of unique simulations, each run to the specified SIM\_DEPTH.  
-&nbsp;&nbsp;&nbsp;&nbsp;- Each round is isolated by *`main.js`*, and can be run in parallel.  
+&nbsp;&nbsp;&nbsp;&nbsp;- Each round is isolated by [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src), and can be run in parallel.  
 &nbsp;&nbsp;&nbsp;&nbsp;- This option will likely be deprecated once parameter sweeps are implemented.  
 
 **WORKERS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- Maximum number of worker threads to launch in parallel (each round gets its own worker thread).  
-&nbsp;&nbsp;&nbsp;&nbsp;- Roughly correlates with CPU threads. *`main.js`* manages the workers, your system manages CPU allocation.   
+&nbsp;&nbsp;&nbsp;&nbsp;- Roughly correlates with CPU threads. [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src) manages the workers, your system manages CPU allocation.   
 
 **MAX_RAM**    
-&nbsp;&nbsp;&nbsp;&nbsp; - Total amount of system RAM, in megabytes, that may be consumed by *`main.js`* + all running workers.  
+&nbsp;&nbsp;&nbsp;&nbsp; - Total amount of system RAM, in megabytes, that may be consumed by [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src) + all running workers.  
 &nbsp;&nbsp;&nbsp;&nbsp; - Each worker consumes ~100MB for every 1000 sim-hours. Memory is freed as each worker completes its round.  
 
 **DIFFICULTY_TARGET_V2**  
 **DIFFICULTY_WINDOW**   
 **DIFFICULTY_LAG**         
 **DIFFICULTY_CUT**     
-*See Monero's source code for more details. The sim difficulty adjustment was ported from `difficulty.cpp`.*  
+*See Monero's source code for more details. The sim difficulty adjustment was ported from [difficulty.cpp](https://github.com/monero-project/monero/blob/master/src/cryptonote_basic/difficulty.cpp)*   
 
 **NETWORK_HASHRATE**     
 &nbsp;&nbsp;&nbsp;&nbsp; - Total network hashes per second. Remains constant throughout the sim.   
-&nbsp;&nbsp;&nbsp;&nbsp; - This must be aligned with *`config/difficulty.bootstrap.csv`* or it will cause inaccurate block times.   
-&nbsp;&nbsp;&nbsp;&nbsp; - Per-pool absolute hashrate is derived from this and the hash power percentage in *`config/pools.json`*   
+&nbsp;&nbsp;&nbsp;&nbsp; - This must be aligned with [difficulty.bootstrap.csv](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/difficulty_bootstrap.csv.sample) or it will cause inaccurate block times.   
+&nbsp;&nbsp;&nbsp;&nbsp; - Per-pool absolute hashrate is derived from this and the hash power percentage in [pools.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/pools.json.example)    
 
 **BLOCK_SIZE**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Size of each block, in kilobytes. Remains constant throughout the sim.   
@@ -85,11 +85,11 @@ The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* an
 
 **SEED**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Randomness seed incremented each SIM\_ROUND, for fully reproducible runs.    
-&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but it's converted to uint32 inside the sim\_core.  
+&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but it's converted to uint32 inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js)    
 
 **PING**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Average ping, in milliseconds, between pools (round trip time).    
-&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside *`sim_core.js`*).
+&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js))    
 
 **CV**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Coefficient of variance, as a single value for network variance in probability distribution calculations.   
@@ -112,8 +112,7 @@ The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* an
 
 ---
 
-### See: *`docs/sim-core-internals.md`* for additional details on the network physics modeling.
-
+### See: [docs/sim-core-internals.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/docs/sim-core-internals.md) for additional details on the network physics modeling.
 ---
 
 

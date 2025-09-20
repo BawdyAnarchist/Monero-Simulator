@@ -20,13 +20,13 @@ Configures the mining pools participating in the simulation.
 ```
 
 *   **`P0`, `P1` `P2` ...**  These are the unique pool identifiers.
-*   **`strategy`:**  Unique key that links a pool to an entry in *`strategy_manifest.json`*.
+*   **`strategy`:**  Unique key that links a pool to an entry in [strategy_manifest.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/strategy_manifest.json.example).
 *   **`HPP`:**  The hash power percentage (as a fraction). The sum of all pools must equal **1**
 
 ---
 
 ## *`strategy_manifest.json`*
-Defines strategy configurations, along with a unique key for use with *`pools.json`*. Sim pools are agentic -- they must independently determine what actions to take given the network information they have. The reference implementation ([src/plugins/unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)) allows behavior tuning with simple config knobs passed via this json file.
+Defines strategy configurations, along with a unique key for use with [pools.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/pools.json.example). Sim pools are agentic -- they must independently determine what actions to take given the network information they have. The reference implementation ([src/plugins/unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)) allows behavior tuning with simple config knobs passed via this json file.
 
 *Breakdown of a single strategy entry:*
 ```json
@@ -43,10 +43,10 @@ Defines strategy configurations, along with a unique key for use with *`pools.js
 }
 ```
 
-*   **`id`**: The unique identifier for the strategy, referenced by *`pools.json`*.
+*   **`id`**: The unique identifier for the strategy, referenced by [pools.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/pools.json.example).
 *   **`name`**: A human-readable name for reference.
 *   **`description`**: A reference description of the strategy's behavior.
-*   **`module`**: Path to the file in *`src/plugins/`* which implements a pool agent (details below)
+*   **`module`**: Path to the file in [src/plugins/](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src/plugins) which implements a pool agent (details below)
 *   **`entryPoint`**: The exact name of the exported function to be called by the simulator.
 *   **`config`**: A flexible JSON object passed directly to your strategy module. This allows you to parameterize your strategies with tuning constants, feature flags, or function lists without changing the core code.
 
