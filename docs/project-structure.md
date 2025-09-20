@@ -12,24 +12,24 @@ High level overview of the environment and runtime.
 **`.env`** - System, runtime, and high-level simulation parameters. Derived from *`default.env`*
 
 **`config/`** - Granular control of pools, strategies, and historical data.   
-&nbsp;&nbsp;&nbsp;&nbsp;*`config/default.env`* - Example *`.env`*. Basic - wont overload your system.   
-&nbsp;&nbsp;&nbsp;&nbsp;*`config/difficulty_bootstrap.csv`* - Historical data for difficulty adjustment (28 Feb 2025)   
-&nbsp;&nbsp;&nbsp;&nbsp;*`config/pools.json`* - Set the hashpower and strategy code for each pool   
-&nbsp;&nbsp;&nbsp;&nbsp;*`config/strategy_manifest.json`* - Defines each unique strategy configuration   
+&nbsp;&nbsp;&nbsp;&nbsp;**config/default.env** - Example *`.env`*. Basic - wont overload your system.   
+&nbsp;&nbsp;&nbsp;&nbsp;**config/difficulty_bootstrap.csv** - Historical data for difficulty adjustment (28 Feb 2025)   
+&nbsp;&nbsp;&nbsp;&nbsp;**config/pools.json** - Set the hashpower and strategy code for each pool   
+&nbsp;&nbsp;&nbsp;&nbsp;**config/strategy_manifest.json** - Defines each unique strategy configuration   
 
 **`data/`** - Simulation results, and the env details for run reproducibility
 
 **`docs/`** - Project reference material and documentation  
 
 **`logs/`** - Logging (see next section)   
-&nbsp;&nbsp;&nbsp;&nbsp;*`logs/info.log`* - Intra-event operation details/flow.   
-&nbsp;&nbsp;&nbsp;&nbsp;*`logs/probe.log`* - User-inlined `log2()` function for detailed probing.
+&nbsp;&nbsp;&nbsp;&nbsp;**`logs/info.log`** - Intra-event operation details/flow.   
+&nbsp;&nbsp;&nbsp;&nbsp;**`logs/probe.log`** - User-inlined `log2()` function for detailed probing.
 
 **`src/`** - Simulation core     
-&nbsp;&nbsp;&nbsp;&nbsp;*`src/config_init.js`* - If necessary, copies the sample env and config files   
-&nbsp;&nbsp;&nbsp;&nbsp;*`src/main.js`* - Orchestrates simulation setup, parallel workers, and data output   
-&nbsp;&nbsp;&nbsp;&nbsp;*`src/sim_core.js`* - Runs an isolated SIM\_ROUND. This is the event engine and blockchain physics   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;*`src/plugins/unified_pool_agent.js`* - The self-contained pool logic / strategy implementation   
+&nbsp;&nbsp;&nbsp;&nbsp;**src/config_init.js** - If necessary, copies the sample env and config files   
+&nbsp;&nbsp;&nbsp;&nbsp;**src/main.js** - Orchestrates simulation setup, parallel workers, and data output   
+&nbsp;&nbsp;&nbsp;&nbsp;**src/sim_core.js** - Runs an isolated SIM\_ROUND. This is the event engine and blockchain physics   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;src/plugins/unified\_pool\_agent.js - The self-contained pool logic / strategy implementation   
 
 ---
 

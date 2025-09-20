@@ -1,9 +1,9 @@
 
 ---
 
-## Pool Agent Plugin API Reference
+# Pool-Agent API Contract
 
-Agent modules define a pool's behavior in response to network events. The simulation core (`sim_core.js`) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
+Agent modules define a pool's behavior in response to network events. The simulation core (*`sim_core.js`*) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
 
 ### Function Signature
 

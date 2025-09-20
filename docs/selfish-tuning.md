@@ -3,7 +3,7 @@
 
 ## SELFISH STRATEGY TUNING
 
-The `unified_pool_agent.js` module implements a powerful generalization for selfish miner behavior. This document explains the rationale and implementation.
+The *`unified_pool_agent.js`* module implements a powerful generalization for selfish miner behavior. This document explains the rationale and implementation.
 
 ---
 
@@ -11,9 +11,9 @@ The `unified_pool_agent.js` module implements a powerful generalization for self
 
 A number of research papers model various selfish strategies. The presentation usually follows along one or more of: a state diagram, pseudo code, and/or a set of selfish actions and state transition triggers. While there is nuance to the topic which leads to a very large set of combinations of mixing-and-matching strategies that can be deployed at any particular set of state transitions ...
 
-> **The majority of behaviors can be modeled with just two integer parameters: `k threshold` and `retort policy`.   
+> **The majority of behaviors can be modeled with just two integer parameters: `k threshold` and `retort policy`.**
 
-> Combined with `state` parameters, the behavior of selfish miners (SM) can be expressed in 3 simple policy equations.**
+> **Combined with `state` parameters, the behavior of selfish miners (SM) can be expressed in 3 simple policy equations.**
 
 ---
 
@@ -22,9 +22,9 @@ A number of research papers model various selfish strategies. The presentation u
 As an agent module in a state-stepping simulator, the pool agent must: *capture the pre-step state* -> *assess the activeEvent* -> *calculate outputs.* Thus, some of the parameter names below are slightly jarring from an academic perspective, but presented as code variables for clarity.
 
 **Policy Parameters**
-| Parameter | Definition | Effect |
+| Parameter | Definition | Integer: Effect |
 |---|---|---|
-| `kThresh` | The critical `k` value where SM decision logic activates:<br>&nbsp;&nbsp;**Claim victory when able** OR<br>&nbsp;&nbsp;**Abandon branch on `k-1`** | **`1`:** Classic Eyal-Sirer (always take the safe win)<br>**`0`:** Stubborn (embrace 0' risk before claiming)<br>**`-1`:** Very Stubborn (tolerate falling behind) |
+| `kThresh` | The critical `k` value where SM decision logic activates:<br>&nbsp;&nbsp;&nbsp;&nbsp;*Claim victory when able* OR<br>&nbsp;&nbsp;&nbsp;&nbsp;*Abandon branch on `k-1`* | **`1`:** Classic Eyal-Sirer (always take the safe win)<br>**`0`:** Stubborn (embrace 0' risk before claiming)<br>**`-1`:** Very Stubborn (tolerate falling behind) |
 | `retortPolicy` | Number of blocks to publish in response to a 1-block extension of the honest chain | **`0`:** Silent (publish nothing until reorg)<br>**`1`:** Contentious (fork every honest block)<br>**`2`:** Clobber (orphan every honest block) |
 
 **State Parameters**
@@ -54,9 +54,9 @@ claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroP
 retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
 ```
 
-The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is merely incidental/irrelevant as the decision pivot is based on `result > 0`).
+The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is incidental/irrelevant, as the decision pivot is based on `result > 0`).
 
-| kThresh | kNew | zeroPrimeBump | Abandon | Claim |
+| kThresh | kNew | zeroPrimeBump | Result<br>Abandon | Result<br>Claim |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | -1 | 1 | 1 | 3 |
 | 1 | 0 | 1 | 0 | 2 |
@@ -76,7 +76,7 @@ The lookup tables below demonstrates the correctness of the equations. Note that
 | -1 | 2 => 1 | 1 | -2 | 0 |
 | -1 | 2 | 1 | -3 | -1 |
 
-| retortPolicy | addedLength | retortCount |
+| retortPolicy | addedLength | Result<br>retortCount |
 | :--- | :--- | :--- |
 | 0 | 0 | 0 |
 | 0 | 1 | 0 |
