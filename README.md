@@ -14,8 +14,6 @@ This codebase implements a discrete-event framework for analyzing miner PoW dyna
 
 Refer to *`config/README.md`* for a quick-reference on pools and strategies configuration. The API for adding a custom miner strategy is at*`docs/STRATEGY_API.md`*
 
-Refer to *`docs/`* for system  
-
 ### Getting Started
 1. Dependencies
 ```
