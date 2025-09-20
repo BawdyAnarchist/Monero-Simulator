@@ -45,7 +45,7 @@ The strategy function **MUST** return an object with the following properties (s
 | `timestamp` | number \| null | **On `CREATE`:** The Unix timestamp for the new block. A strategy can manipulate this. <br> **On `RECV_OTHER`:** Must be `null`, as the received block already has a timestamp. |
 | `scores` | object \| null | Unique view of what the pool believes about the block/network. See `Scores Specification`. |
 | `requestIds` | Set() \| null | `blockIds` the pool identifies as missing, after processing the `activeEvent`. |
-| `broadcastId` | array \| null | `blockIds` to broadcast (or not), based on the pool's strategy. |
+| `broadcastIds` | array \| null | `blockIds` to broadcast (or not), based on the pool's strategy. |
 
 #### Scores Specification
 
