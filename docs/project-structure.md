@@ -9,11 +9,11 @@ High level overview of the environment and runtime.
 
 ## Directory Tree
 
-**`.env`** - System, runtime, and high-level simulation parameters. Derived from *`default.env`*
+**`.env`** - System, runtime, and high-level simulation parameters. Derived from *`config/default.env`*
 
 **`config/`** - Granular control of pools, strategies, and historical data.   
 &nbsp;&nbsp;&nbsp;&nbsp;**config/default.env** - Example *`.env`*. Basic - wont overload your system.   
-&nbsp;&nbsp;&nbsp;&nbsp;**config/difficulty_bootstrap.csv** - Historical data for difficulty adjustment (28 Feb 2025)   
+&nbsp;&nbsp;&nbsp;&nbsp;**config/difficulty_bootstrap.csv** - Historical data for difficulty adjustment (*28 Feb 2025*)   
 &nbsp;&nbsp;&nbsp;&nbsp;**config/pools.json** - Set the hashpower and strategy code for each pool   
 &nbsp;&nbsp;&nbsp;&nbsp;**config/strategy_manifest.json** - Defines each unique strategy configuration   
 
@@ -22,8 +22,8 @@ High level overview of the environment and runtime.
 **`docs/`** - Project reference material and documentation  
 
 **`logs/`** - Logging (see next section)   
-&nbsp;&nbsp;&nbsp;&nbsp;**`logs/info.log`** - Intra-event operation details/flow.   
-&nbsp;&nbsp;&nbsp;&nbsp;**`logs/probe.log`** - User-inlined `log2()` function for detailed probing.
+&nbsp;&nbsp;&nbsp;&nbsp;**logs/info.log** - Intra-event operation details/flow.   
+&nbsp;&nbsp;&nbsp;&nbsp;**logs/probe.log** - User-inlined `log2()` function for detailed probing.
 
 **`src/`** - Simulation core     
 &nbsp;&nbsp;&nbsp;&nbsp;**src/config_init.js** - If necessary, copies the sample env and config files   
@@ -91,7 +91,7 @@ The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* an
 
 **PING**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Average ping, in milliseconds, between pools (round trip time).    
-&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside *`sim\_core.js`*).
+&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside *`sim_core.js`*).
 
 **CV**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Coefficient of variance, as a single value for network variance in probability distribution calculations.   

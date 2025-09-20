@@ -1,7 +1,7 @@
 
 ---
 
-# Pool-Agent API Contract
+# API Contract: &nbsp: pool\_agent <--> sim\_core
 
 Agent modules define a pool's behavior in response to network events. The simulation core (*`sim_core.js`*) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
 
@@ -25,9 +25,9 @@ The entry point receives three objects as arguments:
 |---|---|
 | `activeEvent` | An object containing details of the event this pool must process. |
 | `pool` | A read-only object representing the current state of the pool. |
-| `blocks` | A read-only object containing the full state of all known blocks. |
+| `blocks` | A read-only object containing the full state of all simulated blocks, including orphans, and including blocks the pool might not be aware of yet. |
 
-See the **Detailed Parameter Specifications** near the bottom for details.
+See the **Detailed Parameter Specifications** near the bottom for full specs on these parameters.
 
 > **IMPORTANT: State Immutability**
 > The `pool` and `blocks` objects are direct references to the global simulation state. **Do not mutate them directly.** Modifying these objects can corrupt the simulation state and produce invalid results. All state changes must be communicated through the `return` object.
@@ -36,14 +36,14 @@ See the **Detailed Parameter Specifications** near the bottom for details.
 
 ### Return Value (Outputs)
 
-The strategy function **MUST** return an object with the following properties (they may be 'null').
+The strategy function **MUST** return an object with the following properties (some can be 'null').
 
 | Property | Type | Description |
 |---|---|---|
 | `chaintip` | string | `blockId` that the pool considers its new chaintip after processing the event. |
 | `altTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip after processing the event. |
 | `timestamp` | number \| null | **On `CREATE`:** The Unix timestamp for the new block. A strategy can manipulate this. <br> **On `RECV_OTHER`:** Must be `null`, as the received block already has a timestamp. |
-| `scores` | object | Unique view of what the pool believes about the block/network. See `Scores Specification`. |
+| `scores` | object \| null | Unique view of what the pool believes about the block/network. See `Scores Specification`. |
 | `requestIds` | Set() \| null | `blockIds` the pool identifies as missing, after processing the `activeEvent`. |
 | `broadcastId` | array \| null | `blockIds` to broadcast (or not), based on the pool's strategy. |
 

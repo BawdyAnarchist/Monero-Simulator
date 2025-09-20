@@ -1,13 +1,13 @@
 
 ---
 
-## Pools and Strategies Quick Reference
+# Pools and Strategies Quick Reference
 
-**Do not modify the .example default files. Just run `npm start`, and they'll be copied automatically.**
+**Do not modify the *.example* default files. Just run `npm start`, and they'll be copied automatically.**
 
 ---
 
-### *`pools.json`*
+## *`pools.json`*
 Configures the mining pools participating in the simulation.
 
 ```json
@@ -25,7 +25,7 @@ Configures the mining pools participating in the simulation.
 
 ---
 
-### *`strategy_manifest.json`*
+## *`strategy_manifest.json`*
 Defines strategy configurations, along with a unique key for use with *`pools.json`*. Sim pools are agentic -- they must independently determine what actions to take given the network information they have. The reference implementation (*`unified_pool_agent.js`*) allows behavior tuning with simple config knobs passed via this json file.
 
 *Breakdown of a single strategy entry:*

@@ -23,4 +23,4 @@ npm install dotenv d3-random p-limit tinyqueue
 npm start
 # Results will be in the `data/` directory   
 ```
-**Review *`.env`* and *`config/`* for customizing runtime parameters**
+**Review *`.env`* and *`config/`* for customized runtime parameters**

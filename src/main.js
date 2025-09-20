@@ -44,7 +44,7 @@ const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
 const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
 const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
-const NETWORK_HASHRATE = Number(process.env.NETWORK_HASH);
+const NETWORK_HASHRATE = Number(process.env.NETWORK_HASHRATE);
 
 const NTP_STDEV  = Number(process.env.NTP_STDEV);
 const PING       = Number(process.env.PING);
@@ -90,7 +90,7 @@ async function conductChecks(pools) {
    if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
 
    /* Check for presence of critical environment variables */
-   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'WORKERS', 'NETWORK_HASH',
+   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'WORKERS', 'NETWORK_HASHRATE',
       'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
       'NTP_STDEV', 'PING', 'MBPS', 'CV', 'BLOCK_SIZE', 'SEED'];
    for (const v of envVars) {
@@ -279,15 +279,15 @@ function initializePools(pools, hScore, startTip) {
       const p            = pools[poolKey];
       const ntpDrift     = normalNtp();
       const score        = { ...hScore, localTime: Math.floor(hScore.localTime + ntpDrift) };
-      p.id               = poolKey;                 // Enrich with id=Key for simplicity later
-      p.ntpDrift         = ntpDrift;                // Persistent ntp drift
-      p.hashrate         = p.HPP * NETWORK_HASH;    // hashrate based on hashpower percentage
-      p.chaintip         = startTip;                // Last guaranteed historical common ancestor
-      p.altTip           = null;                    // For selfish pools to track honest chaintip
+      p.id               = poolKey;                  // Enrich with id=Key for simplicity later
+      p.ntpDrift         = ntpDrift;                 // Persistent ntp drift
+      p.hashrate         = p.HPP * NETWORK_HASHRATE; // hashrate based on hashpower percentage
+      p.chaintip         = startTip;                 // Last guaranteed historical common ancestor
+      p.altTip           = null;                     // For selfish pools to track honest chaintip
       p.scores           = Object.create(null);
-      p.scores[startTip] = score;                   // Apply score to last historical block
-      p.requestIds       = new Set();               // Missing blocks requested from the network
-      p.unscored         = new Map();               // Unscored blocks waiting on ancestor score(s)
+      p.scores[startTip] = score;                    // Apply score to last historical block
+      p.requestIds       = new Set();                // Missing blocks requested from the network
+      p.unscored         = new Map();                // Unscored blocks waiting on ancestor score(s)
       p.config = MANIFEST.find(s => s.id === p.strategy).config;  // Save strategy manifest config
    }
 }
