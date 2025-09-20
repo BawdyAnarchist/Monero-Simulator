@@ -11,7 +11,8 @@ The `unified_pool_agent.js` module implements a powerful generalization for self
 
 A number of research papers model various selfish strategies. The presentation usually follows along one or more of: a state diagram, pseudo code, and/or a set of selfish actions and state transition triggers. While there is nuance to the topic which leads to a very large set of combinations of mixing-and-matching strategies that can be deployed at any particular set of state transitions ...
 
-> **The majority of behaviors can be modeled with just two integer parameters: `k threshold` and `retort policy`   
+> **The majority of behaviors can be modeled with just two integer parameters: `k threshold` and `retort policy`.   
+
 > Combined with `state` parameters, the behavior of selfish miners (SM) can be expressed in 3 simple policy equations.**
 
 ---
@@ -35,7 +36,7 @@ As an agent module in a state-stepping simulator, the pool agent must: *capture 
 | `altLength` | Length of the honest branch *before* integration of the activeEvent |
 | `addedLength` | Length added by the honest branch *after* integration of the activeEvent |
 | `kNew` | Lead of the selfish pool over the honest network, *after* analyzing the event |
-| `zeroPrimeBump` | An increment bias required to model the `0'` => `k+1` state transition:&nbsp;&nbsp;&nbsp;`(altLength === selfLength) ? 2 : 1;` |
+| `zeroPrimeBump` | An increment bias required to model the `0'` => `k+1` state transition:<br>&nbsp;&nbsp;&nbsp;`(altLength === selfLength) ? 2 : 1;` |
 
 ---
 

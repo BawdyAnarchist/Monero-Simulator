@@ -9,9 +9,9 @@ Agent modules define a pool's behavior in response to network events. The simula
 
 A strategy's entry point must conform to the following signature:
 ```javascript
-function executePoolAgent(activeEvent, pool, blocks) {
+function invokePoolAgent(activeEvent, pool, blocks) {
   // ... agent logic ...
-  return { chaintip, timestamp, scores, broadcastId };
+  return { chaintip, timestamp, scores, broadcastIds };
 }
 ```
 
@@ -53,12 +53,10 @@ When handling a `RECV_OTHER` event, the strategy must score the incoming block(s
 
 *Example `scores` object:*
 ```json
-{
-  "scores": {
+"scores": {
     "12345677_P0": { /* ...score entry... */ },
     "12345678_P7": { /* ...score entry... */ }
   }
-}
 ```
 
 *Score Entry Object:*
