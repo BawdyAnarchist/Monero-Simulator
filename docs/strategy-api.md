@@ -3,7 +3,7 @@
 
 # API Contract: &nbsp; pool\_agent <--> sim\_core
 
-Agent modules define a pool's behavior in response to network events. The simulation core (*`sim_core.js`*) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
+Agent modules define a pool's behavior in response to network events. The simulation core ([sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js)) calls the registered `entryPoint` function, and passes it the current state. The agent must then return an object which informs the core on how to proceed.
 
 ### Function Signature
 

@@ -26,7 +26,7 @@ Configures the mining pools participating in the simulation.
 ---
 
 ## *`strategy_manifest.json`*
-Defines strategy configurations, along with a unique key for use with *`pools.json`*. Sim pools are agentic -- they must independently determine what actions to take given the network information they have. The reference implementation (*`unified_pool_agent.js`*) allows behavior tuning with simple config knobs passed via this json file.
+Defines strategy configurations, along with a unique key for use with *`pools.json`*. Sim pools are agentic -- they must independently determine what actions to take given the network information they have. The reference implementation ([src/plugins/unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)) allows behavior tuning with simple config knobs passed via this json file.
 
 *Breakdown of a single strategy entry:*
 ```json

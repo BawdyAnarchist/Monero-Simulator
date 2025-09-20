@@ -2,8 +2,7 @@
 ---
 
 ## SELFISH STRATEGY TUNING
-
-The *`unified_pool_agent.js`* module implements a powerful generalization for selfish miner behavior. This document explains the rationale and implementation.
+The [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js) module implements a powerful generalization for selfish miner behavior. This document explains the rationale and implementation.
 
 ---
 

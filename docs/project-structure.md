@@ -9,27 +9,25 @@ High level overview of the environment and runtime.
 
 ## Directory Tree
 
-**`.env`** - System, runtime, and high-level simulation parameters. Derived from *`config/default.env`*
-
-**`config/`** - Granular control of pools, strategies, and historical data.   
-&nbsp;&nbsp;&nbsp;&nbsp;**config/default.env** - Example *`.env`*. Basic - wont overload your system.   
-&nbsp;&nbsp;&nbsp;&nbsp;**config/difficulty_bootstrap.csv** - Historical data for difficulty adjustment (*28 Feb 2025*)   
-&nbsp;&nbsp;&nbsp;&nbsp;**config/pools.json** - Set the hashpower and strategy code for each pool   
-&nbsp;&nbsp;&nbsp;&nbsp;**config/strategy_manifest.json** - Defines each unique strategy configuration   
-
-**`data/`** - Simulation results, and the env details for run reproducibility
-
-**`docs/`** - Project reference material and documentation  
-
-**`logs/`** - Logging (see next section)   
-&nbsp;&nbsp;&nbsp;&nbsp;**logs/info.log** - Intra-event operation details/flow.   
-&nbsp;&nbsp;&nbsp;&nbsp;**logs/probe.log** - User-inlined `log2()` function for detailed probing.
-
-**`src/`** - Simulation core     
-&nbsp;&nbsp;&nbsp;&nbsp;**src/config_init.js** - If necessary, copies the sample env and config files   
-&nbsp;&nbsp;&nbsp;&nbsp;**src/main.js** - Orchestrates simulation setup, parallel workers, and data output   
-&nbsp;&nbsp;&nbsp;&nbsp;**src/sim_core.js** - Runs an isolated SIM\_ROUND. This is the event engine and blockchain physics   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;src/plugins/unified\_pool\_agent.js - The self-contained pool logic / strategy implementation   
+**Monero_sim/**  
+├─ **.env** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runtime parameters (derived from [default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env))*    
+├─ **config/** &nbsp;&nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
+│&nbsp;&nbsp;&nbsp;├─ default.env &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *example .env -> copied on first run*   
+│&nbsp;&nbsp;&nbsp;├─ difficulty_bootstrap.csv &nbsp; # *historical data for difficulty adjustment (28 Feb 2025)*   
+│&nbsp;&nbsp;&nbsp;├─ pools.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# *set the hashpower and strategy code for each pool*   
+│&nbsp;&nbsp;&nbsp;└─ strategy_manifest.json &nbsp; # *defines each unique strategy configuration*   
+├─ **data/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim results*   
+├─ **docs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; #  *reference material*   
+├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
+│&nbsp;&nbsp;&nbsp;├─ info.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Intra-event operation details/flow.*   
+│&nbsp;&nbsp;&nbsp;└─ probe.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *user-inlined `log2()` function for detailed probing.*     
+│     
+└─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*     
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ config_init.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *if necessary, copies the sample env and config files*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ main.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  # *orchestrates simulation setup, parallel workers, and data output*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ sim_core.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runs an isolated SIM\_ROUND. This is the event engine and blockchain physics*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ plugins/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *pluggable countermeasures/strategies*    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ unified\_pool\_agent.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *self-contained pool logic & strategy implementation*  
 
 ---
 
@@ -50,7 +48,7 @@ The functions `log()` and `log2()` can only be inlined inside *`sim_core.js`* an
 ---
 
 ## *`.env`*
-*`config/default.env`* is copied to the parent directory as *`.env`*. It contains crucial system, runtime, and high-level simulation parameters.
+[config/default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env) is copied to the parent directory as *`.env`*. It contains crucial system, runtime, and high-level simulation parameters.
 
 **SIM_DEPTH**    
 &nbsp;&nbsp;&nbsp;&nbsp; - The number of hours to simulate in an isolated SIM\_ROUND.   

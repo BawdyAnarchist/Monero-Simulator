@@ -7,13 +7,13 @@ This codebase implements a discrete-event framework for analyzing miner PoW dyna
 - **FAST:** Simulates ~1 yr, 8 pools (with selfish), in ~60 sec on a single thread
 - **Multi-Pool Simulation:**  Set strategy and hashrate for an arbitrary number of pools
 - **Pluggable Pool Agents:**  Simple API to implement custom mining strategies
-- **Tunable Selfish Behavior:** Two-parameter policy reproduces the documented variants (see: *`docs/selfish-tuning.md`*)
+- **Tunable Selfish Behavior:** Two-parameter policy reproduces the documented variants (see: [docs/selfish-tuning.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/docs/selfish-tuning.md))
 - **Stochastic Network Model:**  Tunable parameters with reproducible seed
 - **Multi Threaded:** Run isolated rounds in parallel
 - **Accurate Difficulty Adjustment:**  Monero's exact algo, bootstrapped with historical data
 
-Refer to *`config/README.md`* for a quick-reference on pools and strategies configuration.   
-The API for adding a custom miner strategy is at *`docs/strategy-api.md`*
+Refer to [config/README.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/README.md) for a quick-reference on pools and strategies configuration.   
+The API for adding a custom miner strategy is at [docs/strategy-api.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/docs/strategy-api.md)
 
 ### Getting Started
 1. Dependencies
