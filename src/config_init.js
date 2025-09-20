@@ -29,15 +29,15 @@ for (const file of configFiles) {
    if (!fs.existsSync(file.live)) {
       if (fs.existsSync(file.bak)) {
          fs.copyFileSync(file.bak, file.live);   // Copy the file
-         /* Remove the warning comments at the top */
-         const lines = fs.readFileSync(file.live, 'utf8').split('\n');
-         if (lines[0].startsWith('##') && lines[1].startsWith('##')) {
-            const modifiedContent = lines.slice(2).join('\n');
-            fs.writeFileSync(file.live, modifiedContent, 'utf8');
-         }
       } else {
          throw new Error(`[INIT] FATAL: ${file.live} not found and no example exists at ${file.bak}`);
       }
+   }
+   /* Remove the warning comments at the top */
+   const lines = fs.readFileSync(file.live, 'utf8').split('\n');
+   if (lines.length > 1 && lines[0].startsWith('##') && lines[1].startsWith('##')) {
+      const modifiedContent = lines.slice(2).join('\n');
+      fs.writeFileSync(file.live, modifiedContent, 'utf8');
    }
 }
 dotenv.config();
