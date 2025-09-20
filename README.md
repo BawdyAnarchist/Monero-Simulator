@@ -13,7 +13,7 @@ This codebase implements a discrete-event framework for analyzing miner PoW dyna
 - **Accurate Difficulty Adjustment:**  Monero's exact algo, bootstrapped with historical data
 
 Refer to *`config/README.md`* for a quick-reference on pools and strategies configuration.   
-The API for adding a custom miner strategy is at*`docs/strategy-api.md`*
+The API for adding a custom miner strategy is at *`docs/strategy-api.md`*
 
 ### Getting Started
 1. Dependencies
