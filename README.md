@@ -4,6 +4,7 @@
 This codebase implements a discrete-event framework for analyzing miner PoW dynamics in Monero, via Monte Carlo simulations. The strategy logic governing miner/pool behavior has been modularized into a pluggable system with a straightforward manifest and pool list. The purpose is to create a reproducible environment for evaluating the security and secondary effects of proposed PoW modifications.
 
 ### Features
+- **FAST** Simulates ~1 yr (~360k blocks with a selfish pool) in ~60 sec on a single thread
 - **Multi-Pool Simulation:**  Set strategy and hashrate for an arbitrary number of pools
 - **Pluggable Pool Agents:**  Simple API to implement custom mining strategies
 - **Stochastic Network Model:**  Tunable parameters with reproducible seed
