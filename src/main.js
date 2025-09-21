@@ -24,7 +24,7 @@ const PROJ_ROOT  = path.resolve(__dirname, '..');
 /* Logging System */
 let LOG = new Object();
 LOG.ERR   = path.join(__dirname, '../logs/main_error.log');
-LOG.INFO  = process.env.NODE_DEBUG?.includes('info')  && path.join(__dirname, '../logs/info.log') 
+LOG.INFO  = process.env.NODE_DEBUG?.includes('info')  && path.join(__dirname, '../logs/info.log')
 LOG.PROBE = process.env.NODE_DEBUG?.includes('probe') && path.join(__dirname, '../logs/probe.log')
 LOG.STATS = process.env.NODE_DEBUG?.includes('stats') && path.join(__dirname, '../logs/stats.log')
 
