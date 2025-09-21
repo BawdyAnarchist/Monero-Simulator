@@ -21,18 +21,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 const PROJ_ROOT  = path.resolve(__dirname, '..');
 
+/* Logging System */
+let LOG = new Object();
+LOG.ERR   = path.join(__dirname, '../logs/main_error.log');
+LOG.INFO  = process.env.NODE_DEBUG?.includes('info')  && path.join(__dirname, '../logs/info.log') 
+LOG.PROBE = process.env.NODE_DEBUG?.includes('probe') && path.join(__dirname, '../logs/probe.log')
+LOG.STATS = process.env.NODE_DEBUG?.includes('stats') && path.join(__dirname, '../logs/stats.log')
+
 /* Initialization and Setup */
-const enableLog  = process.env.NODE_DEBUG?.includes('info');
-const enableLog2 = process.env.NODE_DEBUG?.includes('probe');
-const ERR        = path.join(__dirname, '../logs/main_error.log');
-const LOG        = path.join(__dirname, '../logs/info.log');
-const LOG2       = path.join(__dirname, '../logs/probe.log');
 const HISTORY    = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
 const MANIFEST   = JSON.parse(fs.readFileSync(path.join(
                               PROJ_ROOT, 'config/strategy_manifest.json'),'utf8'));
 const POOLS      = JSON.parse(fs.readFileSync(path.join(
-                             PROJ_ROOT, 'config/pools.json'), 'utf8'),
-                            (k, v) => (k.startsWith('Comment') ? undefined : v));
+                              PROJ_ROOT, 'config/pools.json'), 'utf8'),
+                             (k, v) => (k.startsWith('Comment') ? undefined : v));
 
 /* Define all .env constants here, so we can check them (not null) */
 const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
@@ -68,8 +70,8 @@ const scoreBuffer = [];
 // Troubleshooting stanza. Leave for now in case it's needed later. Shows open processes
 const activeProcessesLog = (() => {
    const { resourceUsage } = process;
-   console.log(`main() activeHandles:`,  localeNow(), process._getActiveHandles());
-   console.log(`main() activeRequests:`, localeNow(), process._getActiveRequests());
+   console.log(`main() activeHandles:`,  timeNow(), process._getActiveHandles());
+   console.log(`main() activeRequests:`, timeNow(), process._getActiveRequests());
 });
 
 
@@ -77,17 +79,20 @@ const activeProcessesLog = (() => {
 // SECTION 2: GENERIC HOUSEKEEPING HELPERS
 // -----------------------------------------------------------------------------
 
-function localeNow() {
+function dateNow() {
+   return new Date().toLocaleString();
+}
+function timeNow() {
    return new Date().toLocaleTimeString();
 }
 
 async function conductChecks(pools) {
    /* Checks when running with logging */
-   if (enableLog) {
+   if (LOG.INFO || LOG.PROBE || LOG.STATS) {
       if (SIM_ROUNDS > 1)
-         throw new Error('Log mode only with SIM_ROUNDS=1. Large file, overwrites the prev log.');
+         throw new Error('Log mode enabled, dont run multiple rounds in .env');
       if (SIM_DEPTH > 1000)
-         console.warn('Warning: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
+         console.warn('WARNING: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
    }
 
    /* Check for required simulation files */
@@ -309,7 +314,7 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, enableLog, enableLog2},
+            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, LOG },
             resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
          }
       );
@@ -349,32 +354,30 @@ async function main() {
    const simDepth = blocks[startTip].simClock + (SIM_DEPTH * 3600);
    const jobs = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
       return { idx , promise: limit(() =>
-         runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)) };
+         runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth, LOG)) };
    });
-   console.log('Environment checks good, starting sim rounds ...', localeNow());
+   console.log('Environment checks good, starting sim rounds ...', timeNow());
 
    /* Await each job’s completion (order of resolution is not important) */
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
-         const { pools: poolsResults, blocks: blocksResults,
-                 infoLog: infoLog, probeLog: probeLog } = await promise;
+         const { pools: poolsResults, blocks: blocksResults, LOG: LOG } = await promise;
          if (++completedJobs === jobs.length) console.log('Rounds complete. Waiting on disk ...');
-         if (enableLog)  fs.writeFileSync(LOG,  `${localeNow()}, WORKER ${idx}, LOG\n${infoLog}\n`);
-         if (enableLog2) fs.writeFileSync(LOG2, `${localeNow()}, WORKER ${idx}, LOG\n${probeLog}\n`);
+         if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
+         if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
+         if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
          await recordResultsToCSV(idx, poolsResults, blocksResults);
       } catch (error) {
          console.error(`FAILURE on round: ${idx}`);
-         if (enableLog && error.result?.infoLog)
-            fs.writeFileSync(LOG,  `WORKER ${idx} LOG\n${error.result.infoLog}\n`);
-         if (enableLog2 && error.result?.probeLog)
-            fs.writeFileSync(LOG2, `WORKER ${idx} LOG\n${error.result.probeLog}\n`);
+         if (LOG.INFO && error.result?.LOG.info)
+            fs.writeFileSync(LOG.INFO, `WORKER ${idx} LOG\n${error.result.info}\n`);
          break;
       }
    }
    console.log('Closing streams ...');
    await gracefulShutdown();
-   console.log('Sim complete. Exiting at:', localeNow());
+   console.log('Sim complete. Exiting at:', timeNow());
 }
 
 process.once('SIGINT', async () => {   // Callbacks for signal exits
@@ -390,7 +393,7 @@ process.once('SIGTERM', async () => {
 
 main().catch(err => {
    console.error('\nA critical error occurred during execution:', err);
-   const errorMsg = `[${new Date().toISOString()}] Critical main() error: ${err.stack || err}\n`;
-   fs.appendFileSync(ERR, errorMsg);
+   const errorMsg = `[ ${dateNow()} ] Critical main() error: ${err.stack || err}\n`;
+   fs.appendFileSync(LOG.ERR, errorMsg);
    process.exit(1);
 });

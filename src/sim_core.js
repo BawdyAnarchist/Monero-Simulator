@@ -19,7 +19,7 @@ const __filename  = fileURLToPath(import.meta.url);
 const __dirname   = path.dirname(__filename);
 
 /* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
-const { idx, pools, blocks, startTip, diffWindows, simDepth, enableLog, enableLog2 } = workerData;
+const { idx, pools, blocks, startTip, diffWindows, simDepth, LOG } = workerData;
 
 /* Difficulty adjustment constants */
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
@@ -40,10 +40,12 @@ let   simNoise   = {};                                   // Will hold probabilit
 let   has_exited = false;
 
 /* Loggers */
-const logBuffer = [];
-const log  = (...args) => enableLog  && logBuffer.push(`${args.join(' ')}`);
-const logBuffer2 = [];
-const log2 = (...args) => enableLog2 && logBuffer2.push(`${args.join(' ')}`);
+LOG.info  = [];
+LOG.probe = [];
+LOG.stats = [];
+const info  = (...args) => LOG.INFO  && LOG.info.push(`${args.join(' ')}`);
+const probe = (...args) => LOG.PROBE && LOG.probe.push(`${args.join(' ')}`);
+const stats = (...args) => LOG.STATS && LOG.stats.push(`${args.join(' ')}`);
 
 // -----------------------------------------------------------------------------
 // SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
@@ -93,8 +95,8 @@ async function makeStrategiesFunctions() {
    let strategies = Object.create(null);
    for (const strategy of MANIFEST) {
       const module = await import(path.resolve(__dirname, strategy.module));
-      if (typeof module.setLog  === 'function') module.setLog(log);    // Inject log into pool agent
-      if (typeof module.setLog2 === 'function') module.setLog2(log2);  // Inject log2 into pool agent
+      if (typeof module.setLog  === 'function') module.setLog(info);      // Inject into pool agent
+      if (typeof module.setLog2 === 'function') module.setLog2(stats); // Inject into pool agent
       const entryPoint = strategy.entryPoint;
       strategies[strategy.id] = module[entryPoint];  // Populate strategies with id and function
    }
@@ -107,7 +109,7 @@ async function makeStrategiesFunctions() {
 // -----------------------------------------------------------------------------
 
 function reconstructDiffWindow(blockId) {
-   log(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
+   info(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
    let loopId = blockId;
    for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
@@ -148,11 +150,14 @@ function exitSimWorker(exit_code) {
    const filteredBlocks = Object.fromEntries(Object.entries(blocks)  // Filter historical blocks
       .filter(([, b]) => b.height > blocks[startTip].height ));
 
-   parentPort.postMessage({                 // Send data and log back to main.js
+   LOG.info  = LOG.info.join('\n');      // Format buffers
+   LOG.probe = LOG.probe.join('\n');
+   LOG.stats = LOG.stats.join('\n');
+
+   parentPort.postMessage({              // Pass critical objects back to main
       pools:    pools,
       blocks:   filteredBlocks,
-      infoLog:  logBuffer.join('\n'),
-      probeLog: logBuffer2.join('\n')
+      LOG:      LOG,
    });
 
    setImmediate(() => process.exit(exit_code));
@@ -169,6 +174,7 @@ function simulateBlockTime(eventQueue, p, simClock) {
    const nxtDifficulty = blocks[p.chaintip].nxtDifficulty;
    const lambda        = p.hashrate / Number(nxtDifficulty);  // Downgrade from BigInt
    const timeToFind    = simNoise.blockTime(lambda)();
+   stats(`timeToFind ${p.hashrate} ${nxtDifficulty} ${timeToFind}`);
 
    /* Hashers can only start mining the new template after network latency */
    eventQueue.push({
@@ -178,7 +184,7 @@ function simulateBlockTime(eventQueue, p, simClock) {
       chaintip: p.chaintip,  // This is the old chaintip blockId that will be extended
       newIds:   null,        // No newId until the event is verified as "sim"-real
    });
-   log(`simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
+   info(`simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
        `timeToFind: ${timeToFind.toFixed(0)}`);
 }
 
@@ -203,7 +209,7 @@ function hasherFindsBlock(p, eventQueue, activeEvent) {
    newEvent.action    = "RECV_OWN";
    eventQueue.push(newEvent);
 
-   log(`hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
+   info(`hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
 }
 
 function generateBlock(p, activeEvent) {
@@ -230,7 +236,7 @@ function generateBlock(p, activeEvent) {
    blocks[newBlockId]   = newBlock;
    activeEvent.newIds   = [newBlockId];      // API requires an array
 
-   log(`generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
+   info(`generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
    return true;
 }
 
@@ -270,7 +276,7 @@ function calculateNextDifficulty(blockId) {
    const target_seconds = BigInt(DIFFICULTY_TARGET_V2);
    const new_difficulty = (total_work * target_seconds + time_span - 1n) / time_span;
 
-   log(`calcNxtDifficulty: ${blocks[blockId].simClock.toFixed(7)} block: ${blockId} ` +
+   info(`calcNxtDifficulty: ${blocks[blockId].simClock.toFixed(7)} block: ${blockId} ` +
        `nextDifficulty: ${new_difficulty}`);
    return new_difficulty <= 0n ? 1n : new_difficulty;
 }
@@ -294,7 +300,7 @@ function broadcastBlock(newIds, eventQueue, activeEvent) {
       });
    }
    for (const id of newIds) blocks[id].broadcast = true;   // Set the block as broadcast
-   log(`broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
+   info(`broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -307,7 +313,7 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    Integrate return contract: { chaintip, timestamp, scores, broadcastId }, into the current state. 
    * Correct API handling by strategies is crucial. No other way to achieve strategy modularity.*
 */
-   log(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} resultip: ${results.chaintip}`);
+   info(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} resultip: ${results.chaintip}`);
 
    /* Remove received blocks (newIds set) from the pool's request list */
    for (const id of activeEvent.newIds || []) p.requestIds.delete(id);
@@ -398,7 +404,7 @@ async function runSimCore() {
    let activeEvent;
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       if (activeEvent.simClock > simDepth) break;
-      log(`SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
+      info(`SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
           `${activeEvent.poolId} action: ${activeEvent.action}`);
 
       const p = pools[activeEvent.poolId];
@@ -424,12 +430,12 @@ async function runSimCore() {
 
 // Activate crash handling so that we always get logs and available data returned to main
 process.on('unhandledRejection', (reason) => {
-   log('unhandledRejection:', reason?.stack || String(reason));
+   info('unhandledRejection:', reason?.stack || String(reason));
    console.error('unhandledRejection:', reason?.stack || reason);
    exitSimWorker(1);
 });
 process.on('uncaughtException',  (err)    => {
-   log('uncaughtException:', err?.stack || String(err));
+   info('uncaughtException:', err?.stack || String(err));
    console.error('uncaughtException:', err?.stack || err);
    exitSimWorker(1);
 });
