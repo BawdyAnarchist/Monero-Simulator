@@ -67,13 +67,6 @@ let   scoreFields = [];
 const blockBuffer = [];
 const scoreBuffer = [];
 
-// Troubleshooting stanza. Leave for now in case it's needed later. Shows open processes
-const activeProcessesLog = (() => {
-   const { resourceUsage } = process;
-   console.log(`main() activeHandles:`,  timeNow(), process._getActiveHandles());
-   console.log(`main() activeRequests:`, timeNow(), process._getActiveRequests());
-});
-
 
 // -----------------------------------------------------------------------------
 // SECTION 2: GENERIC HOUSEKEEPING HELPERS
