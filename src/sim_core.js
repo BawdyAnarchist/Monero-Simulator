@@ -66,24 +66,44 @@ function makeNoiseFunctions() {
    const txTime  = BLOCK_SIZE / (MBPS * 1024 / 8)             // Block tx time. Mbps -> KB/sec
    const txMu    = Math.log(txTime) - 0.5 * sigma * sigma;
 
-   /* Seed generator once, then call it later (more efficient) */
-   const logNormal = randomLogNormal.source(rng);
-
    /* Ping spike model: Rare additive delays to mimic burstiness. Scale by PING and CV */
    const spikeProb   = (base_pct) => base_pct - 0.015 + (0.01 * Math.pow(1 + CV, 2));  // magic
    const spikeAmount = (min, max) => ping * (min + (max - min) * rng());      // min-max spike %
 
-   /* One-way-delay probability distribution functions. 10-50% P2P, 20-100% P2H on ping spike */
-   const baseP2P = logNormal(pingMu,  sigma);
-   const baseP2H = logNormal(pingMu2, sigma2);
-   const owdP2P  = () => rng() < spikeProb(0.01) ? baseP2P() + spikeAmount(0.1, 0.5) : baseP2P();
-   const owdP2H  = () => rng() < spikeProb(0.04) ? baseP2H() + spikeAmount(0.2, 1.0) : baseP2H();
+   /* Seed generators once. Declare samplers (prob distributions) to call later (most efficient) */
+   const logNormal   = randomLogNormal.source(rng);
+   const exponential = randomExponential.source(rng);
+   const baseP2P     = logNormal(pingMu,  sigma);
+   const baseP2H     = logNormal(pingMu2, sigma2);
+   const baseTxTime  = logNormal(txMu, sigma);
+
+   /* Call the samplers, with the stats() log integrated for correctness auditing */
+   const owdP2P = () => {                        // 10-50% P2P, 20-100% P2H on ping spike
+      const value = rng() < spikeProb(0.01) ? baseP2P() + spikeAmount(0.1, 0.5) : baseP2P();
+      stats(`owdP2P: ${value}`);
+      return value;
+   };
+   const owdP2H = () => {                        // 10-50% P2P, 20-100% P2H on ping spike
+      const value = rng() < spikeProb(0.04) ? baseP2H() + spikeAmount(0.2, 1.0) : baseP2H();
+      stats(`owdP2H: ${value}`);
+      return value;
+   };
+   const transTime = () => {
+      const value = baseTxTime();
+      stats(`transTime: ${value}`);
+      return value;
+   };
+   const blockTime = (lambda) => {
+      const value = exponential(lambda)();
+      stats(`BlockTime_λ: ${value} ${lambda}`);
+      return value;
+   };
 
    return {
-      owdP2P:    owdP2P,                             // One-Way-Delay, Pool-to-Pool
-      owdP2H:    owdP2H,                             // One-Way-Delay, Pool-to-Hasher
-      transTime: logNormal(txMu, sigma),             // Time to send block, not including OWD
-      blockTime: randomExponential.source(rng),
+      owdP2P:    owdP2P,                        // One-Way-Delay, Pool-to-Pool
+      owdP2H:    owdP2H,                        // One-Way-Delay, Pool-to-Hasher
+      transTime: transTime,                     // Time to send block, not including OWD
+      blockTime: blockTime,                     // Per-pool expected blockTime
    }
 }
 
@@ -173,8 +193,7 @@ function simulateBlockTime(eventQueue, p, simClock) {
 
    const nxtDifficulty = blocks[p.chaintip].nxtDifficulty;
    const lambda        = p.hashrate / Number(nxtDifficulty);  // Downgrade from BigInt
-   const timeToFind    = simNoise.blockTime(lambda)();
-   stats(`timeToFind ${p.hashrate} ${nxtDifficulty} ${timeToFind}`);
+   const timeToFind    = simNoise.blockTime(lambda);
 
    /* Hashers can only start mining the new template after network latency */
    eventQueue.push({
