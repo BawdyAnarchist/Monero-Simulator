@@ -40,7 +40,7 @@ const POOLS      = JSON.parse(fs.readFileSync(path.join(
 const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
 const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
 const WORKERS    = Number(process.env.WORKERS);
-const MAX_RAM    = Number(process.env.MAX_RAM);
+const WORKER_RAM = Number(process.env.WORKER_RAM);   // Max RAM usage per-worker
 
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
@@ -308,7 +308,7 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
             workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, LOG },
-            resourceLimits: { maxOldGenerationSizeMb: MAX_RAM },
+            resourceLimits: { maxOldGenerationSizeMb: WORKER_RAM },
          }
       );
       let result;

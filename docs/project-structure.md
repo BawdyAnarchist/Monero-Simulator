@@ -64,8 +64,8 @@ The functions `log()` and `log2()` can only be inlined inside [sim_core.js](http
 &nbsp;&nbsp;&nbsp;&nbsp;- Maximum number of worker threads to launch in parallel (each round gets its own worker thread).  
 &nbsp;&nbsp;&nbsp;&nbsp;- Roughly correlates with CPU threads. [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src) manages the workers, your system manages CPU allocation.   
 
-**MAX_RAM**    
-&nbsp;&nbsp;&nbsp;&nbsp; - Total amount of system RAM, in megabytes, that may be consumed by [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src) + all running workers.  
+**WORKER_RAM**    
+&nbsp;&nbsp;&nbsp;&nbsp; - Max RAM, in megabytes, that a single worker may use.
 &nbsp;&nbsp;&nbsp;&nbsp; - Each worker consumes ~100MB for every 1000 sim-hours. Memory is freed as each worker completes its round.  
 
 **DIFFICULTY_TARGET_V2**  
