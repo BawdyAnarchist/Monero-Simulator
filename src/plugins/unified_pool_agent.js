@@ -113,7 +113,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    } else {
       kNew = selfLength - maxTipLength;              // Extend the honest branch
       results.chaintip = p.chaintip;
-      results.altTip   = maxTip[1]                   // Must update the altTip
+      results.altTip   = maxTip[1];                  // Must update the altTip
       addedLength      = Math.max(0, maxTipLength - altLength);  // No negatives (pollutes equation)
    }
 
@@ -131,7 +131,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    /* If abandon was triggered, ignore claimThreshold, and adopt the honest branch */
    if (abandonThresh > 0) {
       results.chaintip = maxTip[1];
-      return
+      return;
    }
    /* If triggered, assemble the list of unbroadcast blocks that might be broadcast */
    let unbroadcast = [];
