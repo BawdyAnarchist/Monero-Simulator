@@ -141,6 +141,10 @@ function reconstructDiffWindow(blockId) {
    diffWindows[blockId] = diffWindow;
 }
 
+function calculateMetrics() {
+
+}
+
 function resourceManagement(eventQueue) {
    /* Prune unused diffWindows to keep memory usage down */
    const keepWindows = new Set();
@@ -155,7 +159,7 @@ function resourceManagement(eventQueue) {
    if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
 }
 
-function exitSimWorker(exit_code) {
+function exitSimWorker(exit_code, metrics) {
 /* Unified exit and message handling, both success and error */
 
    if (has_exited) return;   // Prevent any possibility of a double-call (unlikely but defended)
@@ -175,9 +179,10 @@ function exitSimWorker(exit_code) {
    LOG.stats = LOG.stats.join('\n');
 
    parentPort.postMessage({              // Pass critical objects back to main
-      pools:    pools,
-      blocks:   filteredBlocks,
-      LOG:      LOG,
+      pools:   pools,
+      blocks:  filteredBlocks,
+      LOG:     LOG,
+      metrics: metrics,
    });
 
    setImmediate(() => process.exit(exit_code));
@@ -444,7 +449,8 @@ async function runSimCore() {
 
       resourceManagement(eventQueue);
    }
-   exitSimWorker(0);
+   const metrics = calculateMetrics();       // Summarized chain health metrics for main.js
+   exitSimWorker(0, metrics);
 }
 
 // Activate crash handling so that we always get logs and available data returned to main
