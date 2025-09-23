@@ -66,9 +66,9 @@ function makeNoiseFunctions() {
    const txTime  = BLOCK_SIZE / (MBPS * 1024 / 8)             // Block tx time. Mbps -> KB/sec
    const txMu    = Math.log(txTime) - 0.5 * sigma * sigma;
 
-   /* Ping spike model: Rare additive delays to mimic burstiness. Scale by PING and CV */
-   const spikeProb   = (base_pct) => base_pct - 0.015 + (0.01 * Math.pow(1 + CV, 2));  // magic
-   const spikeAmount = (min, max) => ping * (min + (max - min) * rng());      // min-max spike %
+   /* Ping spike model. Rare/random delays, scale up by ping to mimic network degradation */
+   const spikeProb = (base_pct) => base_pct-0.01 + (1-base_pct) * (ping/(ping + 5)); // Magic (s-curve)
+   const spikeMult = () => 1 + Math.pow(1 + ping, 0.7);                              // Magic
 
    /* Seed generators once. Declare samplers (prob distributions) to call later (most efficient) */
    const logNormal   = randomLogNormal.source(rng);
@@ -78,13 +78,13 @@ function makeNoiseFunctions() {
    const baseTxTime  = logNormal(txMu, sigma);
 
    /* Call the samplers, with the stats() log integrated for correctness auditing */
-   const owdP2P = () => {                        // 10-50% P2P, 20-100% P2H on ping spike
-      const value = rng() < spikeProb(0.01) ? baseP2P() + spikeAmount(0.1, 0.5) : baseP2P();
+   const owdP2P = () => {                        // 1% prob of 2x spike at 50ms P2P
+      const value = rng() < spikeProb(0.01) ? baseP2P() * spikeMult() : baseP2P();
       stats(`owdP2P: ${value}`);
       return value;
    };
-   const owdP2H = () => {                        // 10-50% P2P, 20-100% P2H on ping spike
-      const value = rng() < spikeProb(0.04) ? baseP2H() + spikeAmount(0.2, 1.0) : baseP2H();
+   const owdP2H = () => {                        // 4% prob of 2x spike at 50ms P2P
+      const value = rng() < spikeProb(0.04) ? baseP2H() * spikeMult() : baseP2H();
       stats(`owdP2H: ${value}`);
       return value;
    };

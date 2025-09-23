@@ -90,17 +90,19 @@ The functions `log()` and `log2()` can only be inlined inside [sim_core.js](http
 **PING**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Average ping, in milliseconds, between pools (round trip time).    
 &nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js))    
+&nbsp;&nbsp;&nbsp;&nbsp;- To simulate network degradation, here are some reference values:    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **70** - normal network   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **150** - loaded network   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **500** - minor degradation
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **1000** - medium degradation   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **3000** - large disruption   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **9000** - heavy global disruption   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **15000** - effective outage
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; *If you're simulating network degradation, remember to adjust MBPS lower.*  
 
 **CV**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Coefficient of variance, as a single value for network variance in probability distribution calculations.   
-&nbsp;&nbsp;&nbsp;&nbsp;- To simulate network degradation, here are some reference values:    
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **0.3** - Normal network   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **0.6** - Loaded network   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **1.2** - Minor degradation   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **2.0** - Medium degradation   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **3.0** - Heavy global disruption   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **4.0+** - Borderline global outage   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; *If you're simulating network degradation, remember to adjust ping higher as well.*  
+&nbsp;&nbsp;&nbsp;&nbsp;- Don't change this unless you really know what you're doing. Use ping for simulated network degradation.
 
 **MBPS**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Pool-to-pool bandwidth, mega bits per second (Mbps).  
