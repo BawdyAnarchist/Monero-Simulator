@@ -57,15 +57,17 @@ const SEED       = Number(process.env.SEED) >>> 0;
 const rng        = randomLcg(SEED);
 
 /* Results files and recording tools */
-let   RESULTS_BLOCKS, RESULTS_SCORES;
-const RESULTS_DIR = path.join(PROJ_ROOT, 'data/');
-const CHUNK_SIZE  = 8 * 1024 *1024;  //8MB chunks
-let   blockStream = null;
-let   scoreStream = null;
-let   blockFields = [];
-let   scoreFields = [];
-const blockBuffer = [];
-const scoreBuffer = [];
+let   RESULTS_BLOCKS, RESULTS_SCORES, RESULTS_METRICS;
+const RESULTS_DIR   = path.join(PROJ_ROOT, 'data/');
+const CHUNK_SIZE    = 8 * 1024 *1024;  //8MB chunks
+let   blockStream   = null;            //lol
+let   scoreStream   = null;
+let   metricStream  = null;
+let   blockFields   = [];
+let   scoreFields   = [];
+const blockBuffer   = [];
+const scoreBuffer   = [];
+const metricsBuffer = [];
 
 
 // -----------------------------------------------------------------------------
@@ -155,22 +157,27 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
       JSON.stringify(MANIFEST, null, 2));
 
    /* Opens streams for data output */
-   RESULTS_BLOCKS = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
-   RESULTS_SCORES = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
-   blockStream = createGzip();
-   scoreStream = createGzip();
-   blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS, { flags: 'w' }));
-   scoreStream.pipe(fs.createWriteStream(RESULTS_SCORES, { flags: 'w' }));
-   blockStream.on('error', (err) => { console.error('blockStream error', err); });
-   scoreStream.on('error', (err) => { console.error('scoreStream error', err); });
+   RESULTS_BLOCKS  = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
+   RESULTS_SCORES  = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
+   RESULTS_METRICS = path.join(RESULTS_DIR, `${runId}_results_metrics.csv`);
+   blockStream  = createGzip();
+   scoreStream  = createGzip();
+   blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' }));
+   scoreStream.pipe(fs.createWriteStream(RESULTS_SCORES,  { flags: 'w' }));
+   metricStream =   fs.createWriteStream(RESULTS_METRICS, { flags: 'w' });
+   blockStream.on( 'error', (err) => { console.error('blockStream error', err); });
+   scoreStream.on( 'error', (err) => { console.error('scoreStream error', err); });
+   metricStream.on('error', (err) => { console.error('scoreStream error', err); });
 
    /* Capture field order based on initializeHistory(). Write the headers, and the history */
    blockFields = Object.keys(hBlock);
    scoreFields = Object.keys(hScore);
-   const blocksHeader = ['round', ...blockFields];
-   const scoresHeader = ['round', 'pool', 'blockId', ...scoreFields];
+   const blocksHeader  = ['round', ...blockFields];
+   const scoresHeader  = ['round', 'pool', 'blockId', ...scoreFields];
+   const metricsHeader = ['round', 'orphanRate', 'reorgLenAvg', 'reorgLenStd', 'selfishBonus'];
    blockStream.write(blocksHeader.join(',') + '\n');
    scoreStream.write(scoresHeader.join(',') + '\n');
+   metricStream.write(metricsHeader.join(',') + '\n');
 
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
    const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
@@ -183,17 +190,23 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    historyStream.end();
 }
 
-async function recordResultsToCSV(idx, poolsResults, blocksResults) {
+async function recordResultsToCSV(idx, poolsResults, blocksResults, metrics) {
    const blockRows = Object.values(blocksResults)
       .map(b => [idx, ...blockFields.map(k => b[k])].join(',')).join('\n');
    if (blockRows) blockBuffer.push(blockRows);
+
    const scoreRows = Object.entries(poolsResults).flatMap(([poolId, poolData]) =>
       Object.entries(poolData.scores).map(([blockId, score]) =>
          [idx, poolId, blockId, ...scoreFields.map(k => k === 'simClock'
             ? score[k].toFixed(7) : score[k])].join(','))).join('\n');
    if (scoreRows) scoreBuffer.push(scoreRows);
-   if (blockBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
-   if (scoreBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
+
+   metricsBuffer.push([idx, metrics.orphanRate.toFixed(4), metrics.reorgLenAvg.toFixed(4),
+      metrics.reorgLenStd.toFixed(4), metrics.selfishBonus.toFixed(4)].join(','));
+
+   if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
+   if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
+   if (metricsBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, metricsBuffer);
 }
 
 async function writeToBuffer(stream, buffer) {
@@ -206,11 +219,14 @@ async function writeToBuffer(stream, buffer) {
 async function gracefulShutdown() {
    await writeToBuffer(blockStream, blockBuffer);
    await writeToBuffer(scoreStream, scoreBuffer);
+   await writeToBuffer(metricStream, metricsBuffer);
    blockStream?.end();
    scoreStream?.end();
+   metricStream?.end();
    await Promise.all([
       new Promise(res => blockStream.on('finish', res)),
       new Promise(res => scoreStream.on('finish', res)),
+      new Promise(res => metricStream.on('finish', res)),
    ]);
 }
 
@@ -355,12 +371,18 @@ async function main() {
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
-         const { pools: poolsResults, blocks: blocksResults, LOG: LOG } = await promise;
+         const {
+            pools:   poolsResults,
+            blocks:  blocksResults,
+            metrics: metrics,
+            LOG:     LOG,
+         } = await promise;
+
          if (++completedJobs === jobs.length) console.log('Rounds complete. Waiting on disk ...');
          if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
          if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
          if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
-         await recordResultsToCSV(idx, poolsResults, blocksResults);
+         await recordResultsToCSV(idx, poolsResults, blocksResults, metrics);
       } catch (error) {
          console.error(`FAILURE on round: ${idx}`);
          if (LOG.INFO && error.result?.LOG.info)
