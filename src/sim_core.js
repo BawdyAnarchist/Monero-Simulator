@@ -128,6 +128,10 @@ async function makeStrategiesFunctions() {
 // SECTION 3: HELPERS AND HOUSEKEEPING
 // -----------------------------------------------------------------------------
 
+function timeNow() {
+   return new Date().toLocaleTimeString();
+}
+
 function reconstructDiffWindow(blockId) {
    info(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
@@ -142,7 +146,93 @@ function reconstructDiffWindow(blockId) {
 }
 
 function calculateMetrics() {
+/*
+   Summarize critical aggregate metrics from the sim round. Orphan rate, reorg length stats,
+   selfish miner advantage. Currently analyzes from perspective of the first honest pool. This
+   analysis only works for a network that isnt partitioned/split at a deep level.
+*/
+   let selfishHPP   = 0;
+   let selfishIds   = new Set();
+   let honestIds    = new Set();
+   let ancestor     = Object.values(pools)[0].chaintip;   // Order doesnt matter, any pool will do
 
+   /* Walkback over every single pool, until all agree that the score is on a shared headPath */
+   for (const p of Object.values(pools)) {
+      if (p.config.policy?.honest) {
+         honestIds.add(p.id);
+      } else {
+         selfishIds.add(p.id);
+         selfishHPP += p.HPP
+      }
+   }
+
+   /* Loop over all the pools, aggregating their unique metrics view of the network */
+   const metrics = new Object();
+   for (const p of Object.values(pools)) {
+      if (selfishIds.has(p.id)) continue;                     // Only care about honest miner view
+      const scores = Object.entries(p.scores);                // Copy the pool's scores object
+      scores.sort(([idA, scoreA], [idB, scoreB]) => {         // Identifying reorgs requires sort
+         const clockDiff = scoreA.simClock - scoreB.simClock;
+         if (clockDiff !== 0) return clockDiff;
+         return blocks[idA].height - blocks[idB].height;
+      });
+
+      /* Critical variables required for per-pool metrics calculations */
+      let prevTip      = startTip;
+      let orphanCount  = 0;
+      let reorgList    = [];
+      let reorgDepth   = 0;
+      let selfishCount = 0;
+      let totalCount   = 0;
+
+      /* This loop is why sorting was req'd. Reorgs arent just orphans, but an actual head switch */
+      for (const [id, score] of scores) {
+         if (score.isHeadPath) {
+            if (selfishIds.has(blocks[id].poolId)) selfishCount++;
+            if (reorgDepth > 0) {           // Reorg depth > 0 only when prevTip was not headPath 
+               reorgList.push(reorgDepth);  // Track all unique, completed reorg lengths
+               reorgDepth = 0;
+            }
+         } else {
+            /* Non-selfish blocks not in the head path, and not mere latency artifacts (orphans) */
+            if (selfishIds.has(blocks[id].poolId)) continue;
+            orphanCount++;
+            if (blocks[id].height !== blocks[prevTip].height) reorgDepth++;
+         }
+         totalCount++;
+         prevTip = id;
+      }
+
+      /* Nothing to report. Guard against zeros / divide by zero */
+      if (totalCount === 0 || reorgList.length === 0) {
+         metrics[id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
+         continue;
+      }
+      /* Calculate metrics for the pool and add to the metrics object */
+      reorgList.sort((a, b) => a - b);
+      const orphanRate   = orphanCount / (totalCount - 1);       // (-1) because HH0 is the startTip
+      const reorgMax     = reorgList.at(-1);
+      const reorgP99     = reorgList[Math.ceil(reorgList.length * 0.99) - 1];
+      const selfProfit   = (selfishCount / (totalCount - 1)) - selfishHPP;
+      metrics[p.id] = {
+         orphanRate: orphanRate,
+         reorgMax:   reorgMax,
+         reorgP99:   reorgP99,
+         selfProfit: selfProfit,
+      }
+   }
+   /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
+   const keys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
+   const summary = {};
+   keys.forEach(key => {
+     const values = Object.values(metrics).map(m => m[key]);
+     const mean = values.reduce((a, b) => a + b, 0) / values.length;
+     const stdev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
+     summary[key] = { mean, stdev };
+   });
+   metrics.summary = summary;
+
+   return metrics;
 }
 
 function resourceManagement(eventQueue) {
@@ -167,8 +257,8 @@ function exitSimWorker(exit_code, metrics) {
 
    if (exit_code === 0) {
       const { used_heap_size } = v8.getHeapStatistics();             // Heap RAM usage
-      console.log(`Round ${idx.toString().padStart(3, '0')} completed with heap size: ` +
-         `${(used_heap_size/1_048_576).toFixed(1)} MB, ${new Date().toLocaleTimeString()}`);
+      console.log(`[${timeNow()}] Round ${idx.toString().padStart(3, '0')} ` +
+         `completed with heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB`);
    }
 
    const filteredBlocks = Object.fromEntries(Object.entries(blocks)  // Filter historical blocks
@@ -248,7 +338,7 @@ function generateBlock(p, activeEvent) {
    const newBlock = {
       simClock:       activeEvent.simClock,
       height:         b.height + 1,
-      pool:           activeEvent.poolId,
+      poolId:         activeEvent.poolId,
       blockId:        newBlockId, 
       prevId:         b.blockId,
       timestamp:      null,                  // Defer, as strategies might manipulate timestamp
@@ -402,7 +492,7 @@ async function runSimCore() {
    Pool state changes depend on other pools' actions + network delays. We cant simply generate
    and process events sequentially. We simulate latency, and add future events to the queue.
 */ 
-   console.log(`Starting round: ${idx.toString().padStart(3, '0')} ...`); 
+   console.log(`[${timeNow()}] Starting round: ${idx.toString().padStart(3, '0')}...`);
    simNoise = makeNoiseFunctions();        // Probability distribution functions for sim realism
 
    const strategies = await makeStrategiesFunctions();  // All strategies functions needed later 
