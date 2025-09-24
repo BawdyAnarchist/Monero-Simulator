@@ -189,7 +189,7 @@ function calculateMetrics() {
       for (const [id, score] of scores) {
          if (score.isHeadPath) {
             if (selfishIds.has(blocks[id].poolId)) selfishCount++;
-            if (reorgDepth > 0) {           // Reorg depth > 0 only when prevTip was not headPath 
+            if (reorgDepth > 0) {           // Reorg depth > 0 only when prevTip was not headPath
                reorgList.push(reorgDepth);  // Track all unique, completed reorg lengths
                reorgDepth = 0;
             }
