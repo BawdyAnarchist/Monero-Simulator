@@ -175,7 +175,7 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    const blocksHeader  = ['round', ...blockFields];
    const scoresHeader  = ['round', 'pool', 'blockId', ...scoreFields];
    const metricsHeader = ['round', 'orphanRate', 'stdOR', 'reorgMax', 'stdRM',
-                          'reorgP99', 'stdP99', 'selfishBonus', 'stdSB'];
+                          'reorgP99', 'stdP99', 'selfProfit', 'stdSB'];
    blockStream.write(blocksHeader.join(',') + '\n');
    scoreStream.write(scoresHeader.join(',') + '\n');
    metricStream.write(metricsHeader.join(',') + '\n');
