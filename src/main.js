@@ -174,7 +174,8 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    scoreFields = Object.keys(hScore);
    const blocksHeader  = ['round', ...blockFields];
    const scoresHeader  = ['round', 'pool', 'blockId', ...scoreFields];
-   const metricsHeader = ['round', 'orphanRate', 'reorgLenAvg', 'reorgLenStd', 'selfishBonus'];
+   const metricsHeader = ['round', 'orphanRate', 'stdOR', 'reorgMax', 'stdRM',
+                          'reorgP99', 'stdP99', 'selfishBonus', 'stdSB'];
    blockStream.write(blocksHeader.join(',') + '\n');
    scoreStream.write(scoresHeader.join(',') + '\n');
    metricStream.write(metricsHeader.join(',') + '\n');
@@ -191,19 +192,27 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
 }
 
 async function recordResultsToCSV(idx, poolsResults, blocksResults, metrics) {
+   /* Raw blocks data */
    const blockRows = Object.values(blocksResults)
       .map(b => [idx, ...blockFields.map(k => b[k])].join(',')).join('\n');
    if (blockRows) blockBuffer.push(blockRows);
 
+   /* Raw scores data (all pools) */
    const scoreRows = Object.entries(poolsResults).flatMap(([poolId, poolData]) =>
       Object.entries(poolData.scores).map(([blockId, score]) =>
          [idx, poolId, blockId, ...scoreFields.map(k => k === 'simClock'
             ? score[k].toFixed(7) : score[k])].join(','))).join('\n');
    if (scoreRows) scoreBuffer.push(scoreRows);
 
-   metricsBuffer.push([idx, metrics.orphanRate.toFixed(4), metrics.reorgLenAvg.toFixed(4),
-      metrics.reorgLenStd.toFixed(4), metrics.selfishBonus.toFixed(4)].join(','));
+   /* Metrics summary (avg/stdev over all of the honest, per-pool metrics) */
+   const metricsKeys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
+   const summaryValues = metricsKeys.flatMap(key => [
+      metrics.summary[key].mean.toFixed(4),
+      metrics.summary[key].stdev.toFixed(4),  // std helps detect partitions or inter-pool anomalies
+   ]);
+   metricsBuffer.push([idx, summaryValues].join(','));
 
+   /* Write the buffer */
    if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
    if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
    if (metricsBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, metricsBuffer);
@@ -365,7 +374,7 @@ async function main() {
       return { idx , promise: limit(() =>
          runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth, LOG)) };
    });
-   console.log('Environment checks good, starting sim rounds ...', timeNow());
+   console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
 
    /* Await each job’s completion (order of resolution is not important) */
    let completedJobs = 0;
@@ -378,21 +387,21 @@ async function main() {
             LOG:     LOG,
          } = await promise;
 
-         if (++completedJobs === jobs.length) console.log('Rounds complete. Waiting on disk ...');
+         if (++completedJobs === jobs.length)
+            console.log(`\n[${timeNow()}] All rounds complete. Waiting on disk...`);
          if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
          if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
          if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
          await recordResultsToCSV(idx, poolsResults, blocksResults, metrics);
       } catch (error) {
-         console.error(`FAILURE on round: ${idx}`);
+         console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);
          if (LOG.INFO && error.result?.LOG.info)
             fs.writeFileSync(LOG.INFO, `WORKER ${idx} LOG\n${error.result.info}\n`);
          break;
       }
    }
-   console.log('Closing streams ...');
    await gracefulShutdown();
-   console.log('Sim complete. Exiting at:', timeNow());
+   console.log(`[${timeNow()}] Sim complete. Exiting.\n`);
 }
 
 process.once('SIGINT', async () => {   // Callbacks for signal exits
