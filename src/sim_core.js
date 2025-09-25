@@ -145,7 +145,21 @@ function reconstructDiffWindow(blockId) {
    diffWindows[blockId] = diffWindow;
 }
 
-function calculateMetrics() {
+function resourceManagement(eventQueue) {
+   /* Prune unused diffWindows to keep memory usage down */
+   const keepWindows = new Set();
+   for (const p of Object.values(pools)) {
+      keepWindows.add(p.chaintip);
+      const prev = blocks[p.chaintip]?.prevId;
+      if (prev) keepWindows.add(prev);
+   }
+   for (const k in diffWindows) if (!keepWindows.has(k)) delete diffWindows[k];
+
+   /* Prevent popped events from lingering and consuming memory */
+   if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
+}
+
+function calculateMetrics(results) {
 /*
    Summarize critical aggregate metrics from the sim round. Orphan rate, reorg length stats,
    selfish miner advantage. Currently analyzes from perspective of the first honest pool. This
@@ -230,26 +244,52 @@ function calculateMetrics() {
      const stdev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
      summary[key] = { mean, stdev };
    });
-   metrics.summary = summary;
 
-   return metrics;
+   results.metrics = summary;
 }
 
-function resourceManagement(eventQueue) {
-   /* Prune unused diffWindows to keep memory usage down */
-   const keepWindows = new Set();
-   for (const p of Object.values(pools)) {
-      keepWindows.add(p.chaintip);
-      const prev = blocks[p.chaintip]?.prevId;
-      if (prev) keepWindows.add(prev);
-   }
-   for (const k in diffWindows) if (!keepWindows.has(k)) delete diffWindows[k];
+function prepareDataExport(results) {
+/*
+   Sort, format, transforms applied here to keep load off of main.js for parallelizable tasks.
+*/
+   /* Metrics summary (avg/stdev over all of the honest, per-pool metrics) */
+   const metricsKeys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
+   const summaryValues = metricsKeys.flatMap(key => [
+      results.metrics[key].mean.toFixed(4),
+      results.metrics[key].stdev.toFixed(4),  // stdev helps detect partitions or inter-pool anomalies
+   ]);
+   results.metrics = [idx, ...summaryValues].join(',');
 
-   /* Prevent popped events from lingering and consuming memory */
-   if (eventQueue.data.length > eventQueue.length * 3) eventQueue.data.length = eventQueue.length;
+   /* Sort pool scores by primary: simClock, secondary: height */
+   const scoreFields = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
+   const scoresResults = Object.values(pools).flatMap(p => {
+      const scores = Object.entries(p.scores);
+      scores.sort(([idA, scoreA], [idB, scoreB]) => {
+         const clockDiff = scoreA.simClock - scoreB.simClock;
+         if (clockDiff !== 0) return clockDiff;
+         return blocks[idA].height - blocks[idB].height;
+      });
+      return scores.map(([blockId, score]) =>
+         [idx, p.id, blockId, ...scoreFields.map(k => k === 'simClock'
+            ? score[k].toFixed(7) : score[k])].join(',')
+      );
+   });
+   results.scores = scoresResults;
+
+   /* Filter historical blocks from the output, and format an array*/
+   const blockFields   = Object.keys(blocks[startTip]);
+   const blocksResults = Object.values(blocks)
+      .filter(b => b.height > blocks[startTip].height)
+      .map(b => [idx, ...blockFields.map(k => b[k])].join(','));
+   results.blocks = blocksResults;
+
+   /* Format the log buffers */
+   LOG.info  = LOG.info.join('\n');
+   LOG.probe = LOG.probe.join('\n');
+   LOG.stats = LOG.stats.join('\n');
 }
 
-function exitSimWorker(exit_code, metrics) {
+function exitSimWorker(exit_code, results) {
 /* Unified exit and message handling, both success and error */
 
    if (has_exited) return;   // Prevent any possibility of a double-call (unlikely but defended)
@@ -260,19 +300,9 @@ function exitSimWorker(exit_code, metrics) {
       console.log(`[${timeNow()}] Round ${idx.toString().padStart(3, '0')} ` +
          `completed with heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB`);
    }
-
-   const filteredBlocks = Object.fromEntries(Object.entries(blocks)  // Filter historical blocks
-      .filter(([, b]) => b.height > blocks[startTip].height ));
-
-   LOG.info  = LOG.info.join('\n');      // Format buffers
-   LOG.probe = LOG.probe.join('\n');
-   LOG.stats = LOG.stats.join('\n');
-
    parentPort.postMessage({              // Pass critical objects back to main
-      pools:   pools,
-      blocks:  filteredBlocks,
+      results: results,
       LOG:     LOG,
-      metrics: metrics,
    });
 
    setImmediate(() => process.exit(exit_code));
@@ -506,11 +536,12 @@ async function runSimCore() {
       if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
       if (a.action   !== b.action)   return b.action.localeCompare(a.action); // RECV_OWN first
       if (a.chaintip !== b.chaintip) return a.chaintip.localeCompare(b.chaintip);
-      const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : 0 ;
-      const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : 0 ;
+      const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : '0';
+      const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : '0';
       if (aNewId !== bNewId) return aNewId.localeCompare(bNewId);
       return 0;
    });
+
 
    for (const p of Object.values(pools)) simulateBlockTime(eventQueue, p, blocks[startTip].simClock);
 
@@ -539,8 +570,10 @@ async function runSimCore() {
 
       resourceManagement(eventQueue);
    }
-   const metrics = calculateMetrics();       // Summarized chain health metrics for main.js
-   exitSimWorker(0, metrics);
+   const results = new Object();
+   calculateMetrics(results);             // Summarized chain health metrics for main.js
+   prepareDataExport(results);
+   exitSimWorker(0, results);
 }
 
 // Activate crash handling so that we always get logs and available data returned to main

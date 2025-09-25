@@ -193,28 +193,13 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    historyStream.end();
 }
 
-async function recordResultsToCSV(idx, poolsResults, blocksResults, metrics) {
-   /* Raw blocks data */
-   const blockRows = Object.values(blocksResults)
-      .map(b => [idx, ...blockFields.map(k => b[k])].join(',')).join('\n');
-   if (blockRows) blockBuffer.push(blockRows);
+async function recordResultsToCSV(results) {
+   /* Append pre-formatted data from worker to the global buffers */
+   blockBuffer.push(...results.blocks);
+   scoreBuffer.push(...results.scores);
+   metricsBuffer.push(results.metrics);
 
-   /* Raw scores data (all pools) */
-   const scoreRows = Object.entries(poolsResults).flatMap(([poolId, poolData]) =>
-      Object.entries(poolData.scores).map(([blockId, score]) =>
-         [idx, poolId, blockId, ...scoreFields.map(k => k === 'simClock'
-            ? score[k].toFixed(7) : score[k])].join(','))).join('\n');
-   if (scoreRows) scoreBuffer.push(scoreRows);
-
-   /* Metrics summary (avg/stdev over all of the honest, per-pool metrics) */
-   const metricsKeys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
-   const summaryValues = metricsKeys.flatMap(key => [
-      metrics.summary[key].mean.toFixed(4),
-      metrics.summary[key].stdev.toFixed(4),  // std helps detect partitions or inter-pool anomalies
-   ]);
-   metricsBuffer.push([idx, summaryValues].join(','));
-
-   /* Write the buffer */
+   /* Write the buffer if it's large enough */
    if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
    if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
    if (metricsBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, metricsBuffer);
@@ -382,19 +367,13 @@ async function main() {
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
-         const {
-            pools:   poolsResults,
-            blocks:  blocksResults,
-            metrics: metrics,
-            LOG:     LOG,
-         } = await promise;
-
+         const { results: results, LOG: LOG } = await promise;
          if (++completedJobs === jobs.length)
             console.log(`\n[${timeNow()}] All rounds complete. Waiting on disk...`);
          if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
          if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
          if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
-         await recordResultsToCSV(idx, poolsResults, blocksResults, metrics);
+         await recordResultsToCSV(results);
       } catch (error) {
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);
          if (LOG.INFO && error.result?.LOG.info)
