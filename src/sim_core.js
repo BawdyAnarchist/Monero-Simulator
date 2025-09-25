@@ -505,10 +505,10 @@ async function runSimCore() {
       if (a.simClock !== b.simClock) return a.simClock - b.simClock;
       if (a.poolId   !== b.poolId)   return a.poolId.localeCompare(b.poolId);
       if (a.action   !== b.action)   return b.action.localeCompare(a.action); // RECV_OWN first
-      if (a.chaintip !== b.chaintip) return +a.chaintip - +b.chaintip;        // Cast numeric blockId
-      const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : undefined;
-      const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : undefined;
-      if (aNewId !== bNewId) return (+aNewId || 0) - (+bNewId || 0);
+      if (a.chaintip !== b.chaintip) return a.chaintip.localeCompare(b.chaintip);
+      const aNewId = Array.isArray(a.newIds) ? a.newIds.at(-1) : 0 ;
+      const bNewId = Array.isArray(b.newIds) ? b.newIds.at(-1) : 0 ;
+      if (aNewId !== bNewId) return aNewId.localeCompare(bNewId);
       return 0;
    });
 
