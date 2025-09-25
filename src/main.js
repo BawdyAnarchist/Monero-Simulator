@@ -57,17 +57,16 @@ const SEED       = Number(process.env.SEED) >>> 0;
 const rng        = randomLcg(SEED);
 
 /* Results files and recording tools */
-let   RESULTS_BLOCKS, RESULTS_SCORES, RESULTS_METRICS;
+let   RESULTS_BLOCKS, RESULTS_SCORES, RESULTS_SUMMARY;
 const RESULTS_DIR   = path.join(PROJ_ROOT, 'data/');
 const CHUNK_SIZE    = 8 * 1024 *1024;  //8MB chunks
 let   blockStream   = null;            //lol
 let   scoreStream   = null;
-let   metricStream  = null;
-let   blockFields   = [];
-let   scoreFields   = [];
-const blockBuffer   = [];
-const scoreBuffer   = [];
+let   summaryStream = null;
+const blocksBuffer  = [];
+const scoresBuffer  = [];
 const summaryBuffer = [];
+let   headerWritten = false
 
 
 // -----------------------------------------------------------------------------
@@ -161,73 +160,65 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    /* Opens streams for data output */
    RESULTS_BLOCKS  = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
    RESULTS_SCORES  = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
-   RESULTS_METRICS = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
+   RESULTS_SUMMARY = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
    blockStream  = createGzip();
    scoreStream  = createGzip();
    blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' }));
    scoreStream.pipe(fs.createWriteStream(RESULTS_SCORES,  { flags: 'w' }));
-   metricStream =   fs.createWriteStream(RESULTS_METRICS, { flags: 'w' });
-   blockStream.on( 'error', (err) => { console.error('blockStream error', err); });
-   scoreStream.on( 'error', (err) => { console.error('scoreStream error', err); });
-   metricStream.on('error', (err) => { console.error('scoreStream error', err); });
-
-   /* Capture field order based on initializeHistory(). Write the headers, and the history */
-   blockFields = Object.keys(hBlock);
-   scoreFields = Object.keys(hScore);
-   const blocksHeader  = ['round', ...blockFields];
-   const scoresHeader  = ['round', 'pool', 'blockId', ...scoreFields];
-   const summaryHeader = ['round', 'orphanRate', 'stdOR', 'reorgMax', 'stdRM',
-                          'reorgP99', 'stdP99', 'selfProfit', 'stdSB'];
-   blockStream.write(blocksHeader.join(',') + '\n');
-   scoreStream.write(scoresHeader.join(',') + '\n');
-   metricStream.write(summaryHeader.join(',') + '\n');
+   summaryStream =   fs.createWriteStream(RESULTS_SUMMARY, { flags: 'w' });
+   blockStream.on('error', (err) => { console.error('blockStream error', err); });
+   scoreStream.on('error', (err) => { console.error('scoreStream error', err); });
+   summaryStream.on('error', (err) => { console.error('scoreStream error', err); });
 
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
+   const blockFields = Object.keys(hBlock);
    const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
    const historyStream = createGzip();
    historyStream.pipe(fs.createWriteStream(HISTORY_BLOCKS));
-   historyStream.write(blocksHeader.join(',') + '\n');
+   historyStream.write([...blockFields].join(',') + '\n');
    for (const b of Object.values(blocks)) {
-      historyStream.write(['0', ...blockFields.map(k => b[k])].join(',') + '\n');
+      historyStream.write([...blockFields.map(k => b[k])].join(',') + '\n');
    }
    historyStream.end();
 }
 
 async function recordResultsToCSV(results, LOG) {
-   /* Append pre-formatted data from worker to the global buffers */
-   blockBuffer.push(...results.blocks);
-   scoreBuffer.push(...results.scores);
+   if (!headerWritten) {
+      summaryBuffer.push(results.summary_header);
+      await Promise.all([
+         writeToStream(blockStream, [results.blocks_header]),
+         writeToStream(scoreStream, [results.scores_header]),
+      ]);
+      headerWritten = true;
+   }
+
    summaryBuffer.push(results.summary);
+   await Promise.all([
+      writeToStream(blockStream, results.blocks),
+      writeToStream(scoreStream, results.scores),
+   ]);
 
-   /* Write the buffer if it's large enough */
-   if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
-   if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
-   if (summaryBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, summaryBuffer);
-
-   /* Logs are for single-round runs (investigation/troubleshooting). No stream necessary */
    if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
    if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
    if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
 }
 
-async function writeToBuffer(stream, buffer) {
-   if (!buffer.length) return;
-   const data = buffer.join('\n') + '\n';
-   if (!stream.write(data)) await new Promise(res => stream.once('drain', res));
-   buffer.length = 0;
+async function writeToStream(stream, dataArray) {
+   for (const chunk of dataArray) {
+      if (!stream.write(chunk + '\n'))
+         await new Promise(resolve => stream.once('drain', resolve));
+   }
 }
 
 async function gracefulShutdown() {
-   await writeToBuffer(blockStream, blockBuffer);
-   await writeToBuffer(scoreStream, scoreBuffer);
-   await writeToBuffer(metricStream, summaryBuffer);
+   await writeToStream(summaryStream, summaryBuffer);
    blockStream?.end();
    scoreStream?.end();
-   metricStream?.end();
+   summaryStream?.end();
    await Promise.all([
       new Promise(res => blockStream.on('finish', res)),
       new Promise(res => scoreStream.on('finish', res)),
-      new Promise(res => metricStream.on('finish', res)),
+      new Promise(res => summaryStream.on('finish', res)),
    ]);
 }
 

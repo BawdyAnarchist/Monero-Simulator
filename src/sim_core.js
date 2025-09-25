@@ -236,7 +236,7 @@ function calculateMetrics(results) {
       }
    }
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
-   const keys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
+   const keys = Object.keys(Object.values(metrics)[0]);
    const summary = {};
    keys.forEach(key => {
      const values = Object.values(metrics).map(m => m[key]);
@@ -249,39 +249,41 @@ function calculateMetrics(results) {
 }
 
 function prepareDataExport(results) {
-/*
-   Sort, format, transforms applied here to keep load off of main.js for parallelizable tasks.
-*/
-   /* Metrics summary (avg/stdev over all of the honest, per-pool metrics) */
-   const metricsKeys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
-   const summaryValues = metricsKeys.flatMap(key => [
+/* Final data formatting applied here to keep load off of main.js for parallelizable tasks. */
+
+   /* Metrics summary */
+   const summaryKeys   = Object.keys(results.summary);
+   const summaryValues = summaryKeys.flatMap(key => [
       results.summary[key].mean.toFixed(4),
-      results.summary[key].stdev.toFixed(4),  // stdev helps detect partitions or inter-pool anomalies
+      results.summary[key].stdev.toFixed(4),
    ]);
    results.summary = [idx, ...summaryValues].join(',');
+   results.summary_header = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
 
-   /* Sort pool scores by primary: simClock, secondary: height */
-   const scoreFields = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
+   /* Pool scores */
+   const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
    const scoresResults = Object.values(pools).flatMap(p => {
       const scores = Object.entries(p.scores);
-      scores.sort(([idA, scoreA], [idB, scoreB]) => {
+      scores.sort(([idA, scoreA], [idB, scoreB]) => {          // Sort scores by simClock/height
          const clockDiff = scoreA.simClock - scoreB.simClock;
          if (clockDiff !== 0) return clockDiff;
          return blocks[idA].height - blocks[idB].height;
       });
-      return scores.map(([blockId, score]) =>
+      return scores.map(([blockId, score]) =>                  // Formatting
          [idx, p.id, blockId, ...scoreFields.map(k => k === 'simClock'
             ? score[k].toFixed(7) : score[k])].join(',')
       );
    });
    results.scores = scoresResults;
+   results.scores_header = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
 
-   /* Filter historical blocks from the output, and format an array*/
+   /* Blocks */
    const blockFields   = Object.keys(blocks[startTip]);
    const blocksResults = Object.values(blocks)
-      .filter(b => b.height > blocks[startTip].height)
+      .filter(b => b.height > blocks[startTip].height)            // Filter out historical blocks
       .map(b => [idx, ...blockFields.map(k => b[k])].join(','));
    results.blocks = blocksResults;
+   results.blocks_header = ['idx', ...blockFields].join(',');
 
    /* Format the log buffers */
    LOG.info  = LOG.info.join('\n');
