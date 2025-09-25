@@ -245,7 +245,7 @@ function calculateMetrics(results) {
      summary[key] = { mean, stdev };
    });
 
-   results.metrics = summary;
+   results.summary = summary;
 }
 
 function prepareDataExport(results) {
@@ -255,10 +255,10 @@ function prepareDataExport(results) {
    /* Metrics summary (avg/stdev over all of the honest, per-pool metrics) */
    const metricsKeys = ['orphanRate', 'reorgMax', 'reorgP99', 'selfProfit'];
    const summaryValues = metricsKeys.flatMap(key => [
-      results.metrics[key].mean.toFixed(4),
-      results.metrics[key].stdev.toFixed(4),  // stdev helps detect partitions or inter-pool anomalies
+      results.summary[key].mean.toFixed(4),
+      results.summary[key].stdev.toFixed(4),  // stdev helps detect partitions or inter-pool anomalies
    ]);
-   results.metrics = [idx, ...summaryValues].join(',');
+   results.summary = [idx, ...summaryValues].join(',');
 
    /* Sort pool scores by primary: simClock, secondary: height */
    const scoreFields = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);

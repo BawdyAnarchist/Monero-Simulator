@@ -67,7 +67,7 @@ let   blockFields   = [];
 let   scoreFields   = [];
 const blockBuffer   = [];
 const scoreBuffer   = [];
-const metricsBuffer = [];
+const summaryBuffer = [];
 
 
 // -----------------------------------------------------------------------------
@@ -161,7 +161,7 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    /* Opens streams for data output */
    RESULTS_BLOCKS  = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
    RESULTS_SCORES  = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
-   RESULTS_METRICS = path.join(RESULTS_DIR, `${runId}_results_metrics.csv`);
+   RESULTS_METRICS = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
    blockStream  = createGzip();
    scoreStream  = createGzip();
    blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' }));
@@ -176,11 +176,11 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    scoreFields = Object.keys(hScore);
    const blocksHeader  = ['round', ...blockFields];
    const scoresHeader  = ['round', 'pool', 'blockId', ...scoreFields];
-   const metricsHeader = ['round', 'orphanRate', 'stdOR', 'reorgMax', 'stdRM',
+   const summaryHeader = ['round', 'orphanRate', 'stdOR', 'reorgMax', 'stdRM',
                           'reorgP99', 'stdP99', 'selfProfit', 'stdSB'];
    blockStream.write(blocksHeader.join(',') + '\n');
    scoreStream.write(scoresHeader.join(',') + '\n');
-   metricStream.write(metricsHeader.join(',') + '\n');
+   metricStream.write(summaryHeader.join(',') + '\n');
 
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
    const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
@@ -197,12 +197,12 @@ async function recordResultsToCSV(results, LOG) {
    /* Append pre-formatted data from worker to the global buffers */
    blockBuffer.push(...results.blocks);
    scoreBuffer.push(...results.scores);
-   metricsBuffer.push(results.metrics);
+   summaryBuffer.push(results.summary);
 
    /* Write the buffer if it's large enough */
    if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
    if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
-   if (metricsBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, metricsBuffer);
+   if (summaryBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, summaryBuffer);
 
    /* Logs are for single-round runs (investigation/troubleshooting). No stream necessary */
    if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
@@ -220,7 +220,7 @@ async function writeToBuffer(stream, buffer) {
 async function gracefulShutdown() {
    await writeToBuffer(blockStream, blockBuffer);
    await writeToBuffer(scoreStream, scoreBuffer);
-   await writeToBuffer(metricStream, metricsBuffer);
+   await writeToBuffer(metricStream, summaryBuffer);
    blockStream?.end();
    scoreStream?.end();
    metricStream?.end();
