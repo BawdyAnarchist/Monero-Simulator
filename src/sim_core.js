@@ -401,7 +401,7 @@ function broadcastBlock(newIds, eventQueue, activeEvent) {
    broadcast. Strategy functions determine if they need to catch up on history behind that block. 
 */
    /* Guarantee ascending order by height of newIds for new events */
-   newIds = newIds.toSorted((a, b) => +a - +b); // `+a` (unary plus) parse int until first non-digit
+   newIds = newIds.toSorted((a, b) => blocks[a].height - blocks[b].height);
 
    for (const p of Object.values(pools)) {
       if (p.id === activeEvent.poolId) continue;             // Skip pool who found the block
