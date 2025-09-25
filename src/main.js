@@ -84,6 +84,8 @@ function timeNow() {
 async function conductChecks(pools) {
    /* Checks when running with logging */
    if (LOG.INFO || LOG.PROBE || LOG.STATS) {
+      for (const log of Object.values(LOG))
+         if (log && fs.existsSync(log)) fs.unlinkSync(log);     // Delete previous logs
       if (SIM_ROUNDS > 1)
          throw new Error('Log mode enabled, dont run multiple rounds in .env');
       if (SIM_DEPTH > 1000)
