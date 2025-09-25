@@ -193,7 +193,7 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    historyStream.end();
 }
 
-async function recordResultsToCSV(results) {
+async function recordResultsToCSV(results, LOG) {
    /* Append pre-formatted data from worker to the global buffers */
    blockBuffer.push(...results.blocks);
    scoreBuffer.push(...results.scores);
@@ -203,6 +203,11 @@ async function recordResultsToCSV(results) {
    if (blockBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(blockStream, blockBuffer);
    if (scoreBuffer.join('\n').length   >= CHUNK_SIZE) await writeToBuffer(scoreStream, scoreBuffer);
    if (metricsBuffer.join('\n').length >= CHUNK_SIZE) await writeToBuffer(metricStream, metricsBuffer);
+
+   /* Logs are for single-round runs (investigation/troubleshooting). No stream necessary */
+   if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
+   if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
+   if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
 }
 
 async function writeToBuffer(stream, buffer) {
@@ -367,13 +372,10 @@ async function main() {
    let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
-         const { results: results, LOG: LOG } = await promise;
+         const { results: results, LOG: LOG, } = await promise;  // Destructure results from sim_core
          if (++completedJobs === jobs.length)
             console.log(`\n[${timeNow()}] All rounds complete. Waiting on disk...`);
-         if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
-         if (LOG.PROBE) fs.writeFileSync(LOG.PROBE, `PROBE GENERATED: ${dateNow()}\n${LOG.probe}`);
-         if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
-         await recordResultsToCSV(results);
+         await recordResultsToCSV(results, LOG);                 // Record results
       } catch (error) {
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);
          if (LOG.INFO && error.result?.LOG.info)
