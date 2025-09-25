@@ -478,8 +478,8 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
             simClock:  activeEvent.simClock + 2*simNoise.owdP2P() + simNoise.transTime()*requestIds.size,
             poolId:    p.id,
             action:   "RECV_OTHER",
-            chaintip:  null,
-            newIds:    [...requestIds].toSorted((a, b) => +a - +b),  // Guarantee order of newIds
+            chaintip:  null,                               // Guarantee height-order of newIds
+            newIds:    [...requestIds].toSorted((a, b) => blocks[a].height - blocks[b].height),
          });
       }
    }
