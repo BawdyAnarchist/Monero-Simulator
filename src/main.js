@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 import { Worker } from 'node:worker_threads';
 import { cpus } from 'node:os';
 import { pipeline } from 'node:stream/promises';
-import { createGzip } from 'node:zlib';
+import { gzipSync } from 'node:zlib';
 import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
 import './config_init.js';
@@ -59,12 +59,9 @@ const rng        = randomLcg(SEED);
 /* Results files and recording tools */
 let   RESULTS_BLOCKS, RESULTS_SCORES, RESULTS_SUMMARY;
 const RESULTS_DIR   = path.join(PROJ_ROOT, 'data/');
-const CHUNK_SIZE    = 8 * 1024 *1024;  //8MB chunks
 let   blockStream   = null;            //lol
 let   scoreStream   = null;
 let   summaryStream = null;
-const blocksBuffer  = [];
-const scoresBuffer  = [];
 const summaryBuffer = [];
 let   headerWritten = false
 
@@ -161,11 +158,9 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    RESULTS_BLOCKS  = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
    RESULTS_SCORES  = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
    RESULTS_SUMMARY = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
-   blockStream  = createGzip();
-   scoreStream  = createGzip();
-   blockStream.pipe(fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' }));
-   scoreStream.pipe(fs.createWriteStream(RESULTS_SCORES,  { flags: 'w' }));
-   summaryStream =   fs.createWriteStream(RESULTS_SUMMARY, { flags: 'w' });
+   blockStream     = fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' });
+   scoreStream     = fs.createWriteStream(RESULTS_SCORES,  { flags: 'w' });
+   summaryStream   = fs.createWriteStream(RESULTS_SUMMARY, { flags: 'w' });
    blockStream.on('error', (err) => { console.error('blockStream error', err); });
    scoreStream.on('error', (err) => { console.error('scoreStream error', err); });
    summaryStream.on('error', (err) => { console.error('scoreStream error', err); });
@@ -173,29 +168,29 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
    const blockFields = Object.keys(hBlock);
    const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
-   const historyStream = createGzip();
-   historyStream.pipe(fs.createWriteStream(HISTORY_BLOCKS));
-   historyStream.write([...blockFields].join(',') + '\n');
-   for (const b of Object.values(blocks)) {
-      historyStream.write([...blockFields.map(k => b[k])].join(',') + '\n');
-   }
-   historyStream.end();
+   let csv = blockFields.join(',') + '\n';
+   for (const b of Object.values(blocks))
+      csv += blockFields.map(k => b[k]).join(',') + '\n';
+   fs.writeFileSync(HISTORY_BLOCKS, gzipSync(Buffer.from(csv)));
 }
 
 async function recordResultsToCSV(results, LOG) {
    if (!headerWritten) {
-      summaryBuffer.push(results.summary_header);
+      const blocksHeader  = gzipSync(Buffer.from(results.blocks_header + '\n'));
+      const scoresHeader  = gzipSync(Buffer.from(results.scores_header + '\n'));
+      const summaryHeader = Buffer.from(results.summary_header + '\n');
       await Promise.all([
-         writeToStream(blockStream, [results.blocks_header]),
-         writeToStream(scoreStream, [results.scores_header]),
+         writeBufferToStream(blockStream, blocksHeader),
+         writeBufferToStream(scoreStream, scoresHeader),
+         writeBufferToStream(summaryStream, summaryHeader),
       ]);
       headerWritten = true;
    }
 
-   summaryBuffer.push(results.summary);
    await Promise.all([
-      writeToStream(blockStream, results.blocks),
-      writeToStream(scoreStream, results.scores),
+      writeBufferToStream(blockStream, results.blocks),
+      writeBufferToStream(scoreStream, results.scores),
+      writeBufferToStream(summaryStream, results.summary),
    ]);
 
    if (LOG.INFO)  fs.writeFileSync(LOG.INFO,  `INFO GENERATED: ${dateNow()}\n${LOG.info}`);
@@ -203,15 +198,12 @@ async function recordResultsToCSV(results, LOG) {
    if (LOG.STATS) fs.writeFileSync(LOG.STATS, `STATS GENERATED: ${dateNow()}\n${LOG.stats}`);
 }
 
-async function writeToStream(stream, dataArray) {
-   for (const chunk of dataArray) {
-      if (!stream.write(chunk + '\n'))
-         await new Promise(resolve => stream.once('drain', resolve));
-   }
+async function writeBufferToStream(stream, buf) {
+   /* The check is necessary for efficient chunk queueing/buffer */
+   if (!stream.write(buf)) await new Promise(resolve => stream.once('drain', resolve));
 }
 
 async function gracefulShutdown() {
-   await writeToStream(summaryStream, summaryBuffer);
    blockStream?.end();
    scoreStream?.end();
    summaryStream?.end();
@@ -365,7 +357,6 @@ async function main() {
       try {
          const { results: results, LOG: LOG, } = await promise;  // Destructure results from sim_core
          if (++completedJobs === jobs.length)
-            console.log(`\n[${timeNow()}] All rounds complete. Waiting on disk...`);
          await recordResultsToCSV(results, LOG);                 // Record results
       } catch (error) {
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);

@@ -12,6 +12,7 @@ import { fileURLToPath } from 'url';
 import { parentPort, workerData } from 'node:worker_threads';
 import v8 from 'v8';
 import 'dotenv/config';
+import { gzipSync } from 'node:zlib';
 import TinyQueue from 'tinyqueue';
 import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
 
@@ -257,7 +258,7 @@ function prepareDataExport(results) {
       results.summary[key].mean.toFixed(4),
       results.summary[key].stdev.toFixed(4),
    ]);
-   results.summary = [idx, ...summaryValues].join(',');
+   results.summary = [idx, ...summaryValues].join(',') + '\n';
    results.summary_header = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
 
    /* Pool scores */
@@ -274,15 +275,16 @@ function prepareDataExport(results) {
             ? score[k].toFixed(7) : score[k])].join(',')
       );
    });
-   results.scores = scoresResults;
+   results.scores = gzipSync(Buffer.from(scoresResults.join('\n') + '\n'));
    results.scores_header = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
 
    /* Blocks */
    const blockFields   = Object.keys(blocks[startTip]);
    const blocksResults = Object.values(blocks)
       .filter(b => b.height > blocks[startTip].height)            // Filter out historical blocks
-      .map(b => [idx, ...blockFields.map(k => b[k])].join(','));
-   results.blocks = blocksResults;
+      .map(b => [idx, ...blockFields.map(k => b[k])].join(','))
+      .join('\n') + '\n';
+   results.blocks = gzipSync(Buffer.from(blocksResults));
    results.blocks_header = ['idx', ...blockFields].join(',');
 
    /* Format the log buffers */
@@ -302,10 +304,10 @@ function exitSimWorker(exit_code, results) {
       console.log(`[${timeNow()}] Round ${idx.toString().padStart(3, '0')} ` +
          `completed with heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB`);
    }
-   parentPort.postMessage({              // Pass critical objects back to main
-      results: results,
-      LOG:     LOG,
-   });
+   parentPort.postMessage(
+      { results: results, LOG: LOG },
+      [ results.blocks.buffer, results.scores.buffer ]
+   );
 
    setImmediate(() => process.exit(exit_code));
 }
