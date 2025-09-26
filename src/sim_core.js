@@ -44,9 +44,10 @@ let   has_exited = false;
 LOG.info  = [];
 LOG.probe = [];
 LOG.stats = [];
-const info  = (msg) => { if (!LOG.INFO)  return; LOG.info.push(msg); }
-const probe = (msg) => { if (!LOG.PROBE) return; LOG.probe.push(msg); }
-const stats = (msg) => { if (!LOG.STATS) return; LOG.stats.push(msg); }
+const info  = (msg) => { if (!LOG.INFO)  return; LOG.info.push(msg()); }
+const probe = (msg) => { if (!LOG.PROBE) return; LOG.probe.push(msg()); }
+const stats = (msg) => { if (!LOG.STATS) return; LOG.stats.push(msg()); }
+
 
 // -----------------------------------------------------------------------------
 // SECTION 2: ONE TIME INITIALIZATION FUNCTIONS

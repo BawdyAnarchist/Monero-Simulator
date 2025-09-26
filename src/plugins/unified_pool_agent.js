@@ -25,7 +25,7 @@ export function setLog2(logFunc2) { probe = logFunc2; }
 
 export function invokePoolAgent(activeEvent, p, blocks) {
 /* Entry point from the sim_core, flow coordinator for pool behavior, returns the API contract */
-   info(`invokePoolAgent:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
+   info(() => `invokePoolAgent:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
 
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
 
@@ -85,7 +85,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    Combined with `state` (derived from examining the honest/selfish common ancestor), a large range
    of SM behavior can be expressed in 3 simple policy equations, avoiding complex switching logic.
 */
-   info(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
+   info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
 
    if (!p.altTip) p.altTip = p.chaintip;                // Should only happen once, on first call
    if (maxTip[1] === null) maxTip[1] = p.altTip;        // Guard null maxTip with altTip id
@@ -117,7 +117,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       addedLength      = Math.max(0, maxTipLength - altLength);  // No negatives (pollutes equation)
    }
 
-   info(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${kNew} sL: ${selfLength}`
+   info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${kNew} sL: ${selfLength}`
       + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${commonAncestor}`);
 
    /* Core of the generalized SM logic. For rationale and details see: docs/SELFISH_TUNING.md */
@@ -125,7 +125,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
    const claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
    const retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
 
-   info(`implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} `
+   info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} `
       + `abandon: ${abandonThresh} claim: ${claimThresh} retortCnt: ${retortCount}`);
 
    /* If abandon was triggered, ignore claimThreshold, and adopt the honest branch */
@@ -162,7 +162,7 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
    Must be careful to separate our code's global view, `blocks`, from the pool's view: `scores`.
    Collect list of blocks that need to be requested (if any), then score the block, if able.
 */
-   info(`scoreBlock         ${activeEvent.simClock.toFixed(7)} ${p.id} blockId: ${id}`);
+   info(() => `scoreBlock         ${activeEvent.simClock.toFixed(7)} ${p.id} blockId: ${id}`);
 
    const prevId = blocks[id].prevId;
    const prevCumDiffScore = p.scores[prevId]?.cumDiffScore ?? scores[prevId]?.cumDiffScore;
@@ -189,7 +189,7 @@ function resolveBranch(activeEvent, p, blocks, newTip) {
    Code logic needs the full branch from newIds back to ancestorId. Walk backwards via prevId
    until the first pool-scored block is regarded as the heaviest. That's the common ancestor.
 */
-   info(`resolveBranch:     ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
+   info(() => `resolveBranch:     ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
 
    let id            = newTip;
    let scores        = Object.create(null);
@@ -229,7 +229,7 @@ function scoreDanglingChaintips(activeEvent, p, blocks, scores, newTip) {
    Now that the link has been received, score the descendants who were waiting for completion.
    If scored successfully, these must be added to `scores` and returned to the sim_core.
 */
-   info(`scoreDanglingTips: ${activeEvent.simClock.toFixed(7)} ${p.id}`);
+   info(() => `scoreDanglingTips: ${activeEvent.simClock.toFixed(7)} ${p.id}`);
 
    if (!scores[newTip]?.cumDiffScore) return;         // Tip must have a score to propagate
    const startHeight = blocks[newTip].height;
@@ -273,7 +273,7 @@ function propagateHeadPathToScores(activeEvent, p, blocks, scores, ancestorId, r
    scores; and B) toggles isHeadPath for both orphans/live, adding to `scores` obj if necessary.
    Tracking isHeadpath in the global state, is a code-efficient means of finding the ancestor.
 */
-   info(`propagateHeadPath: ${activeEvent.simClock.toFixed(7)} ${p.id} ancestor: ${ancestorId}`);
+   info(() => `propagateHeadPath: ${activeEvent.simClock.toFixed(7)} ${p.id} ancestor: ${ancestorId}`);
 
    /* p.scores reflects which chaintip the pool selected upon first visibility of the block */
    for (const id in scores) if (!scores[id].chaintip) scores[id].chaintip = results.chaintip;
