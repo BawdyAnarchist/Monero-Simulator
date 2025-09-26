@@ -20,7 +20,7 @@ High level overview of the environment and runtime.
 ├─ **docs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; #  *reference material*   
 ├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
 │&nbsp;&nbsp;&nbsp;├─ info.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Intra-event operation details/flow.*   
-│&nbsp;&nbsp;&nbsp;└─ probe.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *user-inlined `log2()` function for detailed probing.*     
+│&nbsp;&nbsp;&nbsp;└─ probe.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *user-inlined `probe()` function for detailed probing.*     
 │     
 └─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*     
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ config_init.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *if necessary, copies the sample env and config files*   
@@ -36,14 +36,16 @@ Command details and options are defined in [package.json](https://github.com/Baw
 
 **`npm start`:** Complete a full simulation run based on env and config. Delivers results to the [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data) directory.    
 
-**`npm run log`:** Same as 'npm start', but log the primary operations internal to each sim-step event as they're queued up by the engine. Good for basic verification and isolating a failure location. Tagged inline via `log()` function. Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
+**`npm run log`:** Same as 'npm start', but log the primary operations internal to each sim-step event as they're queued up by the engine. Good for basic verification and isolating a failure location. Tagged inline via `info()` function. Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
 
-**`npm run log:probe`:**  A secondary log with no output other than what you explicitly inline into the code. Useful for generating verification checks data, pinpoint probing of sim/pool behaviors, and deep troubleshooting. Usage: Deploy inline `log2()` lines. Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
+**`npm run log:probe`:**  A secondary log with no output other than what you explicitly inline into the code. Useful for generating verification checks data, pinpoint probing of sim/pool behaviors, and deep troubleshooting. Usage: Deploy inline `probe()` lines. Output: [logs/probe.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
 
-**`npm run lint`:**  A very basic eslint setup.   
+**`npm run log:stats`:**  A log dedicated to auditing the outputs of the stochastic parameters as they're generated in real-time by the sim (latency, block find times, block transmission times). Usage: Output: [logs/stats.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).
+
+**`npm run lint`:**  A very basic eslint setup.
 
 > Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
-The functions `log()` and `log2()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)   
+The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)   
 
 ---
 
