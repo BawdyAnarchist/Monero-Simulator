@@ -76,6 +76,10 @@ function timeNow() {
 }
 
 async function conductChecks(state) {
+   /* Verify correctness of the DATA_MODE */
+   if (DATA_MODE !== 'full' && DATA_MODE !== 'summary')
+      throw new Error('DATA_MODE must be "full" or "summary" in .env');
+
    /* Checks when running with logging */
    if (LOG.INFO || LOG.PROBE || LOG.STATS) {
       for (const log of Object.values(LOG))
