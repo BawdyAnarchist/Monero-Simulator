@@ -24,9 +24,9 @@ const PROJ_ROOT  = path.resolve(__dirname, '..');
 /* Logging System */
 let LOG = new Object();
 LOG.ERR   = path.join(__dirname, '../logs/main_error.log');
-LOG.INFO  = process.env.NODE_DEBUG?.includes('info')  && path.join(__dirname, '../logs/info.log')
-LOG.PROBE = process.env.NODE_DEBUG?.includes('probe') && path.join(__dirname, '../logs/probe.log')
-LOG.STATS = process.env.NODE_DEBUG?.includes('stats') && path.join(__dirname, '../logs/stats.log')
+LOG.INFO  = process.env.LOG_MODE?.includes('info')  && path.join(__dirname, '../logs/info.log')
+LOG.PROBE = process.env.LOG_MODE?.includes('probe') && path.join(__dirname, '../logs/probe.log')
+LOG.STATS = process.env.LOG_MODE?.includes('stats') && path.join(__dirname, '../logs/stats.log')
 
 /* Initialization and Setup */
 const HISTORY    = path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv');
@@ -342,8 +342,8 @@ async function main() {
 */
    const state = new Object();
    state.pools = JSON.parse(JSON.stringify(POOLS));
-   await conductChecks(state);         // Check critical files, constants, and functions
 
+   await conductChecks(state);         // Check critical files, constants, and functions
    importHistory(state);
    initializePools(state);             // Setup ntpDrift, hashrate, and history
    initializeResultsStorage(state);    // Requires pools/blocks fields

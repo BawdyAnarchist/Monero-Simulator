@@ -6,9 +6,9 @@
   "main": "src/main.js",
   "scripts": {
     "start": "node src/main.js",
-    "log": "NODE_DEBUG=info node src/main.js",
-    "log:probe": "NODE_DEBUG=info,probe node src/main.js",
-    "log:stats": "NODE_DEBUG=info,stats node src/main.js",
+    "log": "LOG_MODE=info node src/main.js",
+    "log:probe": "LOG_MODE=info,probe node src/main.js",
+    "log:stats": "LOG_MODE=info,stats node src/main.js",
     "lint": "eslint src/**/*.js"
   },
   "keywords": [
