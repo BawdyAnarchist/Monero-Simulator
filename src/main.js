@@ -10,8 +10,6 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Worker } from 'node:worker_threads';
-import { cpus } from 'node:os';
-import { pipeline } from 'node:stream/promises';
 import { gzipSync } from 'node:zlib';
 import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
@@ -41,6 +39,7 @@ const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
 const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
 const WORKERS    = Number(process.env.WORKERS);
 const WORKER_RAM = Number(process.env.WORKER_RAM);   // Max RAM usage per-worker
+const DATA_MODE  = String(process.env.DATA_MODE);
 
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
 const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
@@ -62,7 +61,6 @@ const RESULTS_DIR   = path.join(PROJ_ROOT, 'data/');
 let   blockStream   = null;            //lol
 let   scoreStream   = null;
 let   summaryStream = null;
-const summaryBuffer = [];
 let   headerWritten = false
 
 
@@ -304,7 +302,7 @@ function initializePools(state) {
 // SECTION 4: MAIN, CONTROL MANAGEMENT
 // -----------------------------------------------------------------------------
 
-function runSimCoreInWorker(idx, simDepth, state, LOG) {
+function runSimCoreInWorker(idx, meta, state, LOG) {
 /*
    Spawn a worker that runs one, memory isolated simulation round.
    Returns a promise that resolves with a data object (or rejection/error).
@@ -312,15 +310,15 @@ function runSimCoreInWorker(idx, simDepth, state, LOG) {
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            workerData: { idx, simDepth, state, LOG },
+            workerData: { idx, meta, state, LOG },
             resourceLimits: { maxOldGenerationSizeMb: WORKER_RAM },
          }
       );
       let result;
       let errorObj;
       worker.once('message', (data) => { result = data; });
-      worker.once('error', (err) => { errorObj = err; });
-      worker.once('exit', (code) => {
+      worker.once('error',   (err)  => { errorObj = err; });
+      worker.once('exit',    (code) => {
          setImmediate(() => {
             if (code === 0) {
                if (result !== undefined) resolve(result);
@@ -340,24 +338,27 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
-   const state = new Object();
-   state.pools = JSON.parse(JSON.stringify(POOLS));
-
+   /* Conduct checks and prepare state for hand off the sim_core */
+   const state   = new Object();
+   state.pools   = JSON.parse(JSON.stringify(POOLS));
    await conductChecks(state);         // Check critical files, constants, and functions
-   importHistory(state);
-   initializePools(state);             // Setup ntpDrift, hashrate, and history
-   initializeResultsStorage(state);    // Requires pools/blocks fields
+   importHistory(state);               // Add critical historical data to state
+   initializePools(state);             // Add pools: ntpDrift, hashrate, and hScore to state
+   initializeResultsStorage(state);    // Set up streams to receive worker returned data
 
-   /* Set thread limit, depth, and prepare the worker call */ 
-   const limit    = pLimit(WORKERS || 2);
-   const simDepth = state.blocks[state.startTip].simClock + (SIM_DEPTH * 3600);
-   const jobs = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
-      return { idx , promise: limit(() =>
-         runSimCoreInWorker(idx, simDepth, state, LOG)) };
+   /* Declare the meta parameters of each sim_round */
+   const meta    = new Object();
+   meta.dataMode = DATA_MODE;
+   meta.simDepth = state.blocks[state.startTip].simClock + (SIM_DEPTH * 3600);
+
+   /* Prepare the worker callback function */
+   const limit = pLimit(WORKERS || 2);
+   const jobs  = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
+      return { idx , promise: limit( () => runSimCoreInWorker(idx, meta, state, LOG)) };
    });
-   console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
 
    /* Await each job’s completion (order of resolution is not important) */
+   console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
    for (const { idx, promise } of jobs) {
       try {
          const { results: results, LOG: LOG, } = await promise;  // Destructure results from sim_core
