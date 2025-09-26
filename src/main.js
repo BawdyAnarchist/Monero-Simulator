@@ -56,7 +56,7 @@ const NTP_STDEV  = Number(process.env.NTP_STDEV);
 const rng        = randomLcg(SEED);
 
 /* Results files and recording tools */
-let   RESULTS_BLOCKS, RESULTS_SCORES, RESULTS_SUMMARY;
+let   RESULTS_SUMMARY, RESULTS_METRICS, RESULTS_BLOCKS, RESULTS_SCORES;
 const RESULTS_DIR   = path.join(PROJ_ROOT, 'data/');
 let   blockStream   = null;            //lol
 let   scoreStream   = null;
@@ -161,9 +161,10 @@ async function initializeResultsStorage(state) {
       JSON.stringify(MANIFEST, null, 2));
 
    /* Opens streams for data output */
+   RESULTS_SUMMARY = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
+   RESULTS_METRICS = path.join(RESULTS_DIR, `${runId}_results_metrics.csv`);
    RESULTS_BLOCKS  = path.join(RESULTS_DIR, `${runId}_results_blocks.csv.gz`);
    RESULTS_SCORES  = path.join(RESULTS_DIR, `${runId}_results_scores.csv.gz`);
-   RESULTS_SUMMARY = path.join(RESULTS_DIR, `${runId}_results_summary.csv`);
    blockStream     = fs.createWriteStream(RESULTS_BLOCKS,  { flags: 'w' });
    scoreStream     = fs.createWriteStream(RESULTS_SCORES,  { flags: 'w' });
    summaryStream   = fs.createWriteStream(RESULTS_SUMMARY, { flags: 'w' });
