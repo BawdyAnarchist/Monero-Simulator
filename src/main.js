@@ -352,16 +352,14 @@ async function main() {
    console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
 
    /* Await each job’s completion (order of resolution is not important) */
-   let completedJobs = 0;
    for (const { idx, promise } of jobs) {
       try {
          const { results: results, LOG: LOG, } = await promise;  // Destructure results from sim_core
-         if (++completedJobs === jobs.length)
          await recordResultsToCSV(results, LOG);                 // Record results
       } catch (error) {
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);
-         if (LOG.INFO && error.result?.LOG.info)
-            fs.writeFileSync(LOG.INFO, `WORKER ${idx} LOG\n${error.result.info}\n`);
+         if (LOG.INFO && error.result?.LOG?.info)
+            fs.writeFileSync(LOG.INFO, `WORKER ${idx} LOG\n${error.result.LOG.info}\n`);
          break;
       }
    }

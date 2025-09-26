@@ -166,9 +166,9 @@ function resourceManagement(eventQueue) {
 
 function calculateMetrics(results) {
 /*
-   Summarize critical aggregate metrics from the sim round. Orphan rate, reorg length stats,
-   selfish miner advantage. Currently analyzes from perspective of the first honest pool. This
-   analysis only works for a network that isnt partitioned/split at a deep level.
+   Summarize important metrics for the round. Orphan rate, reorg length stats, and selfish miner
+   advantage. Pool selection bias is avoided by analyzing the perspective of all pools, then avg/
+   stdev over all pools to present aggregated results. Stdev helps identify pool-view divergences.
 */
    let selfishHPP   = 0;
    let selfishIds   = new Set();
