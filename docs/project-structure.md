@@ -33,14 +33,18 @@ High level overview of the environment and runtime.
 
 ## Runtime Commands
 Command options are defined in [package.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/package.json)
+| CLI | Description |
+| --- | --- |
+| **`npm start`** | Run simulation based solely on the saved env and config.   
+| **`npm run sim:simple`** | One line aggregated chain health metrics per round (no scores/blocks).  
+| **`npm run sim:full`** | Full data generation with all blocks and per-pool scores/metrics.    
+| **`npm run sim:sweep`** | Apply sweeps configuration. Simple output per sweep/round.
+| **`npm run log`** | Full data generation, plus the info log.    
+| **`npm run log:probe`**  | Full data, info.log, and probe.log.    
+| **`npm run log:stats`**  | Full data, info.log, and stats.log.     
+| **`npm run lint`**  | A very basic eslint setup.
 
-**`npm start`:** Full simulation run based on env and config. 
-**`npm run log`:** Full data generation, plus the info log.    
-**`npm run log:probe`:** Full data, info.log, and probe.log.    
-**`npm run log:stats`:** Full data, info.log, and stats.log.     
-**`npm run lint`:**  A very basic eslint setup.
-
-> Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
+*Recommend SIM\_DEPTH < 1000 with **log**, to limit filesize.*   
 
 Results (data) saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data)   
 Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs)   
@@ -51,36 +55,38 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 [config/default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env) is copied to the parent directory as *`.env`*. It contains crucial system, runtime, and high-level simulation parameters.
 
 **SIM_DEPTH**    
-&nbsp;&nbsp;&nbsp;&nbsp; - The number of hours to simulate in an isolated SIM\_ROUND.   
+&nbsp;&nbsp;&nbsp;&nbsp;- The number of hours to simulate in an isolated SIM\_ROUND.   
 &nbsp;&nbsp;&nbsp;&nbsp;- All rounds are single-threaded.   
 &nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 7 seconds per 1000 simulated hours.
 
 **SIM_ROUNDS**    
-&nbsp;&nbsp;&nbsp;&nbsp;- The number of unique simulations, each run to the specified SIM\_DEPTH.  
+&nbsp;&nbsp;&nbsp;&nbsp;- Two modes: [integer|sweep].    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-- [integer]: The number of unique simulations, each run to the specified SIM\_DEPTH.  
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-- [sweep]: The required number of rounds are calculated based on the full combinations of the sweeps config.   
 &nbsp;&nbsp;&nbsp;&nbsp;- Each round is isolated by [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src), and can be run in parallel.  
-&nbsp;&nbsp;&nbsp;&nbsp;- This option will likely be deprecated once parameter sweeps are implemented.  
 
 **WORKERS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- Maximum number of worker threads to launch in parallel (each round gets its own worker thread).  
 &nbsp;&nbsp;&nbsp;&nbsp;- Roughly correlates with CPU threads. [main.js](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/src) manages the workers, your system manages CPU allocation.   
 
 **WORKER_RAM**    
-&nbsp;&nbsp;&nbsp;&nbsp; - Max RAM, in megabytes, that a single worker may use.    
-&nbsp;&nbsp;&nbsp;&nbsp; - A worker consumes ~1024 MB at SIM\_DEPTH=7000. Memory is freed after worker completion.   
-&nbsp;&nbsp;&nbsp;&nbsp; - Recommend leaving at 2048 MB. Too low will trigger OOM (heap exhaustion) and terminate the worker.    
+&nbsp;&nbsp;&nbsp;&nbsp;- Max RAM, in megabytes, that a single worker may use.    
+&nbsp;&nbsp;&nbsp;&nbsp;- A worker consumes ~1024 MB at SIM\_DEPTH=7000. Memory is freed after worker completion.   
+&nbsp;&nbsp;&nbsp;&nbsp;- Recommend leaving at 2048 MB. Too low will trigger OOM (heap exhaustion) and terminate the worker.    
 
 **DATA_MODE**    
-&nbsp;&nbsp;&nbsp;&nbsp; - The level of data you want to see output to [data/](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data). Two modes: [full|summary]    
-&nbsp;&nbsp;&nbsp;&nbsp; - full: output all blocks, per-pool scores, per-pool metrics. Consumes ~11 MB per 1000 sim-hours.    
-&nbsp;&nbsp;&nbsp;&nbsp; - summary: provides aggregated critical metrics. Designed for multi-round sweeps/analysis.    
+&nbsp;&nbsp;&nbsp;&nbsp;- 3 modes: [simple|metrics|full]. The amount/type of data output to [data/](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data).   
+&nbsp;&nbsp;&nbsp;&nbsp;- simple: provides one line of aggregated chain health metrics per round, but no scores or blocks.   
+&nbsp;&nbsp;&nbsp;&nbsp;- metrics: per-pool chain health metrics per round, but no per-pool scores, and no blocks.   
+&nbsp;&nbsp;&nbsp;&nbsp;- full: output all blocks, per-pool scores, per-pool metrics. Consumes ~11 MB per 1000 sim-hours.  
 
 **LOG_MODE**    
-&nbsp;&nbsp;&nbsp;&nbsp; - info,probe,stats (or any combination, or leave empty for no log). Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).   
-&nbsp;&nbsp;&nbsp;&nbsp; - info: Basic inspection of operations internal to each sim-step. Pre-tagged inline via `info()` function.    
-&nbsp;&nbsp;&nbsp;&nbsp; - probe: Secondary isolated log for pinpoint behavior probing. Empty unless you inline the `probe()` function.     
-&nbsp;&nbsp;&nbsp;&nbsp; - stats: Audit the stochastic parameters as they're generated in real-time for sim events.  
-&nbsp;&nbsp;&nbsp;&nbsp; - Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
-&nbsp;&nbsp;&nbsp;&nbsp; - The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
+&nbsp;&nbsp;&nbsp;&nbsp;- info,probe,stats (or any combination, or leave empty for no log). Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).   
+&nbsp;&nbsp;&nbsp;&nbsp;- info: Basic inspection of operations internal to each sim-step. Pre-tagged inline via `info()` function.    
+&nbsp;&nbsp;&nbsp;&nbsp;- probe: Secondary isolated log for pinpoint behavior probing. Empty unless you inline the `probe()` function.     
+&nbsp;&nbsp;&nbsp;&nbsp;- stats: Audit the stochastic parameters as they're generated in real-time for sim events.  
+&nbsp;&nbsp;&nbsp;&nbsp;- Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
+&nbsp;&nbsp;&nbsp;&nbsp;- The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
    
 **DIFFICULTY_TARGET_V2**  
 **DIFFICULTY_WINDOW**   
