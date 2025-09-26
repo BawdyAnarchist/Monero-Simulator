@@ -53,7 +53,7 @@ The functions `log()` and `log2()` can only be inlined inside [sim_core.js](http
 **SIM_DEPTH**    
 &nbsp;&nbsp;&nbsp;&nbsp; - The number of hours to simulate in an isolated SIM\_ROUND.   
 &nbsp;&nbsp;&nbsp;&nbsp;- All rounds are single-threaded.   
-&nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 8 seconds per 1000 simulated hours.
+&nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 7 seconds per 1000 simulated hours.
 
 **SIM_ROUNDS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- The number of unique simulations, each run to the specified SIM\_DEPTH.  
