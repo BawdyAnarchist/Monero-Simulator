@@ -36,7 +36,7 @@ const POOLS      = JSON.parse(fs.readFileSync(path.join(
 
 /* Define all .env constants here, so we can check them (not null) */
 const SIM_DEPTH  = Number(process.env.SIM_DEPTH);
-const SIM_ROUNDS = Number(process.env.SIM_ROUNDS);
+const SIM_ROUNDS = process.env.SIM_ROUNDS;
 const WORKERS    = Number(process.env.WORKERS);
 const WORKER_RAM = Number(process.env.WORKER_RAM);   // Max RAM usage per-worker
 const DATA_MODE  = String(process.env.DATA_MODE);
@@ -76,9 +76,14 @@ function timeNow() {
 }
 
 async function conductChecks(state) {
-   /* Verify correctness of the DATA_MODE */
-   if (DATA_MODE !== 'full' && DATA_MODE !== 'summary')
-      throw new Error('DATA_MODE must be "full" or "summary" in .env');
+   /* Check for required simulation files */
+   if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
+
+   /* Verify correctness of the DATA_MODE and SIM_ROUNDS */
+   if (DATA_MODE !== 'simple' && DATA_MODE !== 'metrics' && DATA_MODE !== 'full')
+      throw new Error('DATA_MODE must be either: "simple", "metrics", or "full"');
+   if (isNaN(parseInt(SIM_ROUNDS)) && SIM_ROUNDS !== 'sweep' && SIM_ROUNDS !== 'sweeps')
+      throw new Error('SIM_ROUNDS must either be an integer, or the string: sweep');
 
    /* Checks when running with logging */
    if (LOG.INFO || LOG.PROBE || LOG.STATS) {
@@ -90,14 +95,13 @@ async function conductChecks(state) {
          console.warn('WARNING: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
    }
 
-   /* Check for required simulation files */
-   if (!fs.existsSync(HISTORY)) throw new Error(`Missing history file: ${HISTORY}`);
-
-   /* Check for presence of critical environment variables */
-   const envVars = [ 'SIM_DEPTH', 'SIM_ROUNDS', 'WORKERS', 'NETWORK_HASHRATE',
+   /* Check for presence of critical integer environment variables */
+   const envIntegers = [
+      'SIM_DEPTH', 'WORKERS', 'WORKER_RAM', 'NETWORK_HASHRATE', 'BLOCK_SIZE',
       'DIFFICULTY_TARGET_V2', 'DIFFICULTY_WINDOW', 'DIFFICULTY_LAG', 'DIFFICULTY_CUT',
-      'NTP_STDEV', 'PING', 'MBPS', 'CV', 'BLOCK_SIZE', 'SEED'];
-   for (const v of envVars) {
+      'SEED', 'PING', 'CV', 'MBPS', 'NTP_STDEV',
+   ];
+   for (const v of envIntegers) {
       if (process.env[v] === undefined || isNaN(parseFloat(process.env[v])))
          throw new Error(`Invalid or missing environment variable: ${v}`);
    }
@@ -356,7 +360,7 @@ async function main() {
    meta.simDepth = state.blocks[state.startTip].simClock + (SIM_DEPTH * 3600);
 
    /* Prepare the worker callback function */
-   const limit = pLimit(WORKERS || 2);
+   const limit = pLimit(WORKERS);
    const jobs  = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
       return { idx , promise: limit( () => runSimCoreInWorker(idx, meta, state, LOG)) };
    });
