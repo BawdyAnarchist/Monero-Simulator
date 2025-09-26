@@ -53,7 +53,7 @@ The functions `log()` and `log2()` can only be inlined inside [sim_core.js](http
 **SIM_DEPTH**    
 &nbsp;&nbsp;&nbsp;&nbsp; - The number of hours to simulate in an isolated SIM\_ROUND.   
 &nbsp;&nbsp;&nbsp;&nbsp;- All rounds are single-threaded.   
-&nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 7 seconds for every 1000 sim-hours (including disk write time).   
+&nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 7 seconds per 1000 sim-hours (including disk write time).   
 
 **SIM_ROUNDS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- The number of unique simulations, each run to the specified SIM\_DEPTH.  
@@ -66,7 +66,7 @@ The functions `log()` and `log2()` can only be inlined inside [sim_core.js](http
 
 **WORKER_RAM**    
 &nbsp;&nbsp;&nbsp;&nbsp; - Max RAM, in megabytes, that a single worker may use.
-&nbsp;&nbsp;&nbsp;&nbsp; - Each worker consumes ~100MB for every 1000 sim-hours. Memory is freed as each worker completes its round.  
+&nbsp;&nbsp;&nbsp;&nbsp; - Each worker consumes ~200MB per 1000 sim-hours. That memory is freed as each worker completes its round.    
 
 **DIFFICULTY_TARGET_V2**  
 **DIFFICULTY_WINDOW**   
