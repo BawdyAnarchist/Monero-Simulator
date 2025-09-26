@@ -44,9 +44,9 @@ let   has_exited = false;
 LOG.info  = [];
 LOG.probe = [];
 LOG.stats = [];
-const info  = (...args) => LOG.INFO  && LOG.info.push(`${args.join(' ')}`);
-const probe = (...args) => LOG.PROBE && LOG.probe.push(`${args.join(' ')}`);
-const stats = (...args) => LOG.STATS && LOG.stats.push(`${args.join(' ')}`);
+const info  = (msg) => { if (!LOG.INFO)  return; LOG.info.push(msg); }
+const probe = (msg) => { if (!LOG.PROBE) return; LOG.probe.push(msg); }
+const stats = (msg) => { if (!LOG.STATS) return; LOG.stats.push(msg); }
 
 // -----------------------------------------------------------------------------
 // SECTION 2: ONE TIME INITIALIZATION FUNCTIONS
@@ -81,22 +81,22 @@ function makeNoiseFunctions() {
    /* Call the samplers, with the stats() log integrated for correctness auditing */
    const owdP2P = () => {                        // 1% prob of 2x spike at 50ms P2P
       const value = rng() < spikeProb(0.01) ? baseP2P() * spikeMult() : baseP2P();
-      stats(`owdP2P: ${value}`);
+      stats(() => `owdP2P: ${value}`);
       return value;
    };
    const owdP2H = () => {                        // 4% prob of 2x spike at 50ms P2P
       const value = rng() < spikeProb(0.04) ? baseP2H() * spikeMult() : baseP2H();
-      stats(`owdP2H: ${value}`);
+      stats(() => `owdP2H: ${value}`);
       return value;
    };
    const transTime = () => {
       const value = baseTxTime();
-      stats(`transTime: ${value}`);
+      stats(() => `transTime: ${value}`);
       return value;
    };
    const blockTime = (lambda) => {
       const value = exponential(lambda)();
-      stats(`BlockTime_λ: ${value} ${lambda}`);
+      stats(() => `BlockTime_λ: ${value} ${lambda}`);
       return value;
    };
 
@@ -137,7 +137,7 @@ function msNow() {
 }
 
 function reconstructDiffWindow(blockId) {
-   info(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
+   info(() => `reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
    let loopId = blockId;
    for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
@@ -325,7 +325,7 @@ function simulateBlockTime(eventQueue, p, simClock) {
       chaintip: p.chaintip,  // This is the old chaintip blockId that will be extended
       newIds:   null,        // No newId until the event is verified as "sim"-real
    });
-   info(`simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
+   info(() => `simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
        `timeToFind: ${timeToFind.toFixed(0)}`);
 }
 
@@ -350,7 +350,7 @@ function hasherFindsBlock(p, eventQueue, activeEvent) {
    newEvent.action    = "RECV_OWN";
    eventQueue.push(newEvent);
 
-   info(`hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
+   info(() => `hasherFindsBlock:  ${activeEvent.simClock.toFixed(7)} ${p.id} tip: ${p.chaintip}`);
 }
 
 function generateBlock(p, activeEvent) {
@@ -377,7 +377,7 @@ function generateBlock(p, activeEvent) {
    blocks[newBlockId]   = newBlock;
    activeEvent.newIds   = [newBlockId];      // API requires an array
 
-   info(`generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
+   info(() => `generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
    return true;
 }
 
@@ -417,7 +417,7 @@ function calculateNextDifficulty(blockId) {
    const target_seconds = BigInt(DIFFICULTY_TARGET_V2);
    const new_difficulty = (total_work * target_seconds + time_span - 1n) / time_span;
 
-   info(`calcNxtDifficulty: ${blocks[blockId].simClock.toFixed(7)} block: ${blockId} ` +
+   info(() => `calcNxtDifficulty: ${blocks[blockId].simClock.toFixed(7)} block: ${blockId} ` +
        `nextDifficulty: ${new_difficulty}`);
    return new_difficulty <= 0n ? 1n : new_difficulty;
 }
@@ -441,7 +441,7 @@ function broadcastBlock(newIds, eventQueue, activeEvent) {
       });
    }
    for (const id of newIds) blocks[id].broadcast = true;   // Set the block as broadcast
-   info(`broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
+   info(() => `broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -454,7 +454,7 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
    Integrate return contract: { chaintip, timestamp, scores, broadcastId }, into the current state. 
    * Correct API handling by strategies is crucial. No other way to achieve strategy modularity.*
 */
-   info(`integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} resultip: ${results.chaintip}`);
+   info(() => `integrateStrategy: ${activeEvent.simClock.toFixed(7)} ${p.id} resultip: ${results.chaintip}`);
 
    /* Remove received blocks (newIds set) from the pool's request list */
    for (const id of activeEvent.newIds || []) p.requestIds.delete(id);
@@ -551,7 +551,7 @@ async function runSimCore() {
    let activeEvent;
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       if (activeEvent.simClock > simDepth) break;
-      info(`SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
+      info(() => `SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
           `${activeEvent.poolId} action: ${activeEvent.action}`);
 
       const p = pools[activeEvent.poolId];
@@ -580,12 +580,12 @@ async function runSimCore() {
 
 // Activate crash handling so that we always get logs and available data returned to main
 process.on('unhandledRejection', (reason) => {
-   info('unhandledRejection:', reason?.stack || String(reason));
+   info(() => 'unhandledRejection:', reason?.stack || String(reason));
    console.error('unhandledRejection:', reason?.stack || reason);
    exitSimWorker(1);
 });
 process.on('uncaughtException',  (err)    => {
-   info('uncaughtException:', err?.stack || String(err));
+   info(() => 'uncaughtException:', err?.stack || String(err));
    console.error('uncaughtException:', err?.stack || err);
    exitSimWorker(1);
 });
