@@ -46,13 +46,13 @@ const DIFFICULTY_WINDOW = Number(process.env.DIFFICULTY_WINDOW);
 const DIFFICULTY_LAG = Number(process.env.DIFFICULTY_LAG);
 const DIFFICULTY_CUT = Number(process.env.DIFFICULTY_CUT);
 const NETWORK_HASHRATE = Number(process.env.NETWORK_HASHRATE);
-
-const NTP_STDEV  = Number(process.env.NTP_STDEV);
-const PING       = Number(process.env.PING);
-const MBPS       = Number(process.env.MBPS);
-const CV         = Number(process.env.CV);
 const BLOCK_SIZE = Number(process.env.BLOCK_SIZE);
+
 const SEED       = Number(process.env.SEED) >>> 0;
+const PING       = Number(process.env.PING);
+const CV         = Number(process.env.CV);
+const MBPS       = Number(process.env.MBPS);
+const NTP_STDEV  = Number(process.env.NTP_STDEV);
 const rng        = randomLcg(SEED);
 
 /* Results files and recording tools */
