@@ -20,7 +20,7 @@ const __filename  = fileURLToPath(import.meta.url);
 const __dirname   = path.dirname(__filename);
 
 /* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
-const { idx, pools, blocks, startTip, diffWindows, simDepth, LOG } = workerData;
+const { idx, simDepth, LOG, state: { pools, blocks, startTip, diffWindows } } = workerData;
 
 /* Difficulty adjustment constants */
 const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);

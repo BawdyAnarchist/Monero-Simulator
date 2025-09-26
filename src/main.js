@@ -77,7 +77,7 @@ function timeNow() {
    return new Date().toLocaleTimeString();
 }
 
-async function conductChecks(pools) {
+async function conductChecks(state) {
    /* Checks when running with logging */
    if (LOG.INFO || LOG.PROBE || LOG.STATS) {
       for (const log of Object.values(LOG))
@@ -102,7 +102,7 @@ async function conductChecks(pools) {
 
    /* Verify pool configurations and total hashpower = 100% */
    let totalHPP = 0;
-   for (const [poolId, poolConfig] of Object.entries(pools)) {
+   for (const [poolId, poolConfig] of Object.entries(state.pools)) {
       if (!poolConfig.strategy || !MANIFEST.find(s => s.id === poolConfig.strategy))
          throw new Error(`Pool '${poolId}' has invalid strategy: '${poolConfig.strategy}'`);
       totalHPP += poolConfig.HPP;
@@ -131,7 +131,7 @@ async function conductChecks(pools) {
    await Promise.all(strategyChecks);
 } 
 
-async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
+async function initializeResultsStorage(state) {
 /*
    Results are stored in /data, with a unique prefix (001, 002, ...).
    This includes the sim results and the env files required for a reproducible run.
@@ -143,7 +143,7 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
 
    /* Copy the verbatim .env, manifest, and pools (with NTP adjustments) to data/results */
    const poolsOut = JSON.parse(JSON.stringify(POOLS));   // original template
-   for (const id in pools) poolsOut[id].ntpDrift = pools[id].ntpDrift;
+   for (const id in state.pools) poolsOut[id].ntpDrift = state.pools[id].ntpDrift;
    fs.writeFileSync(
       path.join(RESULTS_DIR, `${runId}_pools.json`),
       JSON.stringify(poolsOut, null, 2));
@@ -166,10 +166,10 @@ async function initializeResultsStorage(blocks, hBlock, hScore, pools) {
    summaryStream.on('error', (err) => { console.error('scoreStream error', err); });
 
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
-   const blockFields = Object.keys(hBlock);
+   const blockFields = Object.keys(state.blocks[state.startTip]);
    const HISTORY_BLOCKS = path.join(RESULTS_DIR, `${runId}_historical_blocks.csv.gz`);
    let csv = blockFields.join(',') + '\n';
-   for (const b of Object.values(blocks))
+   for (const b of Object.values(state.blocks))
       csv += blockFields.map(k => b[k]).join(',') + '\n';
    fs.writeFileSync(HISTORY_BLOCKS, gzipSync(Buffer.from(csv)));
 }
@@ -219,7 +219,7 @@ async function gracefulShutdown() {
 // SECTION 3: SIM INITIALIZATION
 // -----------------------------------------------------------------------------
 
-function importHistory() {
+function importHistory(state) {
 /*
    Populate `blocks` with 735 blocks of history for difficulty adjustment calculation. A
    stateful rolling `diffWindows` avoids a walkback loop via prevId on every new block. 
@@ -268,19 +268,24 @@ function importHistory() {
    if (diffWindow.length > DIFFICULTY_WINDOW + DIFFICULTY_LAG)
       diffWindow = diffWindow.slice(-(DIFFICULTY_WINDOW + DIFFICULTY_LAG));
 
-   return [blocks, hScore, blockId, diffWindows];    // blockId is the chaintip of the historical blocks
+   state.blocks      = blocks;
+   state.hScore      = hScore;         // For sim_core startup, score of the historical chaintip
+   state.startTip    = blockId;        // blockId is the chaintip of the historical blocks
+   state.diffWindows = diffWindows;
 }
 
-function initializePools(pools, hScore, startTip) {
+function initializePools(state) {
 /* 
    Pools need initialized with basic parameters. Historic scores are identical between pools
    (we lack that data anyways), but we do simulate ntpDrift for the most recent historical block.
 */
    const normalNtp = randomNormal.source(rng)(0, NTP_STDEV);  // Build once, use in loop
-   for (const poolKey in pools) {
-      const p            = pools[poolKey];
+   const startTip  = state.startTip;
+   for (const poolKey in state.pools) {
+      const p            = state.pools[poolKey];
       const ntpDrift     = normalNtp();
-      const score        = { ...hScore, localTime: Math.floor(hScore.localTime + ntpDrift) };
+      const score        = { ...state.hScore,
+                                localTime: Math.floor(state.hScore.localTime + ntpDrift) };
       p.id               = poolKey;                  // Enrich with id=Key for simplicity later
       p.ntpDrift         = ntpDrift;                 // Persistent ntp drift
       p.hashrate         = p.HPP * NETWORK_HASHRATE; // hashrate based on hashpower percentage
@@ -299,7 +304,7 @@ function initializePools(pools, hScore, startTip) {
 // SECTION 4: MAIN, CONTROL MANAGEMENT
 // -----------------------------------------------------------------------------
 
-function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth) {
+function runSimCoreInWorker(idx, simDepth, state, LOG) {
 /*
    Spawn a worker that runs one, memory isolated simulation round.
    Returns a promise that resolves with a data object (or rejection/error).
@@ -307,7 +312,7 @@ function runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth)
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
-            workerData: { idx, pools, blocks, startTip, diffWindows, simDepth, LOG },
+            workerData: { idx, simDepth, state, LOG },
             resourceLimits: { maxOldGenerationSizeMb: WORKER_RAM },
          }
       );
@@ -335,19 +340,20 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
-   let pools = JSON.parse(JSON.stringify(POOLS));
-   await conductChecks(pools);                      // Check critical files, constants, and functions
+   const state = new Object();
+   state.pools = JSON.parse(JSON.stringify(POOLS));
+   await conductChecks(state);         // Check critical files, constants, and functions
 
-   const [blocks, hScore, startTip, diffWindows] = importHistory();
-   initializePools(pools, hScore, startTip);                 // Setup ntpDrift, hashrate, and history
-   initializeResultsStorage(blocks, blocks[startTip], hScore, pools); // Requires pools/blocks fields
+   importHistory(state);
+   initializePools(state);             // Setup ntpDrift, hashrate, and history
+   initializeResultsStorage(state);    // Requires pools/blocks fields
 
    /* Set thread limit, depth, and prepare the worker call */ 
    const limit    = pLimit(WORKERS || 2);
-   const simDepth = blocks[startTip].simClock + (SIM_DEPTH * 3600);
+   const simDepth = state.blocks[state.startTip].simClock + (SIM_DEPTH * 3600);
    const jobs = Array.from({ length: SIM_ROUNDS }, (_, idx) => {
       return { idx , promise: limit(() =>
-         runSimCoreInWorker(idx, pools, blocks, startTip, diffWindows, simDepth, LOG)) };
+         runSimCoreInWorker(idx, simDepth, state, LOG)) };
    });
    console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
 
