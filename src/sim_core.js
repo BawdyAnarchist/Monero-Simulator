@@ -132,6 +132,9 @@ async function makeStrategiesFunctions() {
 function timeNow() {
    return new Date().toLocaleTimeString();
 }
+function msNow() {
+   return new Date().toISOString().slice(11, 23);
+}
 
 function reconstructDiffWindow(blockId) {
    info(`reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
@@ -184,13 +187,7 @@ function calculateMetrics(results) {
    /* Loop over all the pools, aggregating their unique metrics view of the network */
    const metrics = new Object();
    for (const p of Object.values(pools)) {
-      if (selfishIds.has(p.id)) continue;                     // Only care about honest miner view
-      const scores = Object.entries(p.scores);                // Copy the pool's scores object
-      scores.sort(([idA, scoreA], [idB, scoreB]) => {         // Identifying reorgs requires sort
-         const clockDiff = scoreA.simClock - scoreB.simClock;
-         if (clockDiff !== 0) return clockDiff;
-         return blocks[idA].height - blocks[idB].height;
-      });
+      if (selfishIds.has(p.id)) continue;                     // Only care about honest pool view
 
       /* Critical variables required for per-pool metrics calculations */
       let prevTip      = startTip;
@@ -200,7 +197,8 @@ function calculateMetrics(results) {
       let selfishCount = 0;
       let totalCount   = 0;
 
-      /* This loop is why sorting was req'd. Reorgs arent just orphans, but an actual head switch */
+      /* Reorgs detection. Reorgs arent merely the orphan count, but an actual head switch */
+      const scores = Object.entries(p.scores);                // Copy the pool's scores object
       for (const [id, score] of scores) {
          if (score.isHeadPath) {
             if (selfishIds.has(blocks[id].poolId)) selfishCount++;
@@ -265,11 +263,6 @@ function prepareDataExport(results) {
    const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
    const scoresResults = Object.values(pools).flatMap(p => {
       const scores = Object.entries(p.scores);
-      scores.sort(([idA, scoreA], [idB, scoreB]) => {          // Sort scores by simClock/height
-         const clockDiff = scoreA.simClock - scoreB.simClock;
-         if (clockDiff !== 0) return clockDiff;
-         return blocks[idA].height - blocks[idB].height;
-      });
       return scores.map(([blockId, score]) =>                  // Formatting
          [idx, p.id, blockId, ...scoreFields.map(k => k === 'simClock'
             ? score[k].toFixed(7) : score[k])].join(',')
@@ -482,8 +475,13 @@ function integrateStrategyResults(p, eventQueue, activeEvent, results) {
       bNew.nxtDifficulty = calculateNextDifficulty(newTip);
    }
 
-   /* Add the new scores to the miner's database, while tracking unscored blocks for sim efficiency */
+   /* Add the new scores to the pool's database, while tracking unscored blocks for sim efficiency */
    if (results.scores) {
+
+      /* Sort by height here, to save a sort later during metrics and data prep */
+      results.scores = Object.fromEntries(Object.entries(results.scores)
+         .sort(([idA],[idB]) => blocks[idA].height - blocks[idB].height));
+
       Object.assign(p.scores, results.scores);
       for (const id in results.scores) {
          if (results.scores[id].cumDiffScore === null) p.unscored.set(id, blocks[id].height);
@@ -526,7 +524,7 @@ async function runSimCore() {
    Pool state changes depend on other pools' actions + network delays. We cant simply generate
    and process events sequentially. We simulate latency, and add future events to the queue.
 */ 
-   console.log(`[${timeNow()}] Starting round: ${idx.toString().padStart(3, '0')}...`);
+   console.log(`[${timeNow()}] Running round: ${idx.toString().padStart(3, '0')}...`);
    simNoise = makeNoiseFunctions();        // Probability distribution functions for sim realism
 
    const strategies = await makeStrategiesFunctions();  // All strategies functions needed later 
