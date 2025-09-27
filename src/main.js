@@ -3,7 +3,7 @@
 ////////////////////////////////////////////
 
 // -----------------------------------------------------------------------------
-// SECTION 1: IMPORTS, CONSTANTS, GLOBALS
+// IMPORTS, GLOBALS, HELPERS
 // -----------------------------------------------------------------------------
 
 import fs from 'fs';
@@ -18,17 +18,17 @@ const rng = randomLcg(CONFIG.sim.seed);  // Required to set per-pool ntpDrift
 const streams = new Object();            // Write streams for recording results per round
 let   headerWritten = false
 
-
-// -----------------------------------------------------------------------------
-// SECTION 2: GENERIC HOUSEKEEPING HELPERS
-// -----------------------------------------------------------------------------
-
 function dateNow() {
    return new Date().toLocaleString();
 }
 function timeNow() {
    return new Date().toLocaleTimeString();
 }
+
+
+// -----------------------------------------------------------------------------
+// MANAGE DATA STORAGE
+// -----------------------------------------------------------------------------
 
 function initializeResultsStorage(state) {
    /* Copy the verbatim .env, manifest, and pools (with NTP adjustments) to data/results */
@@ -93,7 +93,7 @@ async function gracefulShutdown() {
 
 
 // -----------------------------------------------------------------------------
-// SECTION 3: SIM INITIALIZATION
+// SIM STATE INITIALIZATION
 // -----------------------------------------------------------------------------
 
 function importHistory(state) {
@@ -184,7 +184,7 @@ function initializePools(state) {
 
 
 // -----------------------------------------------------------------------------
-// SECTION 4: MAIN, CONTROL MANAGEMENT
+// FLOW CONTROL AND MANAGEMENT
 // -----------------------------------------------------------------------------
 
 function runSimCoreInWorker(idx, CONFIG, state) {
