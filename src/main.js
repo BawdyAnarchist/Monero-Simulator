@@ -120,7 +120,7 @@ function importHistory(state) {
       const newBlock = {
          simClock:      +timestamp,             // "True" Unix date the moment block was found by pool 
          height:        +height,
-         pool:          "HH0",
+         poolId:        "HH0",
          blockId:        blockId,               // For sim simplicity, blockId is just 'height_pool' 
          prevId:        `${+height - 1}_HH0`,
          timestamp:     +timestamp,             // Block header epoch
