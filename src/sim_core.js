@@ -13,16 +13,17 @@ import { gzipSync } from 'node:zlib';
 import TinyQueue from 'tinyqueue';
 import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
 
-/* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
+/* Data objects passed by the worker manager in main */
 const { idx, CONFIG, state } = workerData;
 const { sim, parsed, log } = CONFIG;
 const { pools, blocks, startTip, diffWindows } = state;
 
 /* Critical simulation parameters */
-const rng        = randomLcg((sim.seed + idx) >>> 0);
+const rng        = randomLcg(sim.seed + idx);
 let   simNoise   = {};
 let   has_exited = false;
 
+/* Create LOG. Strings are parsed only if the log is activated (speed boost for non-log runs) */
 const LOG = { info:  [], probe: [], stats: [] };
 const info  = (msg) => { if (!log.info)  return; LOG.info.push(msg()); }
 const probe = (msg) => { if (!log.probe) return; LOG.probe.push(msg()); }

@@ -12,6 +12,7 @@ import { Worker } from 'node:worker_threads';
 import { gzipSync } from 'node:zlib';
 import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
+
 import { CONFIG } from './config_init.js';
 
 const rng = randomLcg(CONFIG.sim.seed);  // Required to set per-pool ntpDrift
