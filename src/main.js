@@ -136,6 +136,7 @@ function importHistory(state) {
          cumDifficulty:  BigInt(cumulative_difficulty)
       });
    }  
+
    /* Scores history irrelevant except the last historical block (chaintip continuity at sim start) */
    const hScore = {                                 // "Weakly subjective" pool perspective
       simClock:      +timestamp,
