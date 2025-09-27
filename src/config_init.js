@@ -27,16 +27,25 @@ function initializeEnvironment() {
    /* Copy the env and configs from the samples, but don't overwrite any existing user files  */
    const configFiles = [
       { live: path.join(PROJ_ROOT, '.env'),
-         bak: path.join(PROJ_ROOT, 'config', 'default.env')
+         bak: path.join(PROJ_ROOT, 'defaults', 'env.example')
       },
-      { live: path.join(PROJ_ROOT, 'config', 'pools.json'),
-         bak: path.join(PROJ_ROOT, 'config', 'pools.json.example')
+      { live: path.join(PROJ_ROOT, 'config',   'pools.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'pools.json.example')
       },
-      { live: path.join(PROJ_ROOT, 'config', 'strategy_manifest.json'),
-         bak: path.join(PROJ_ROOT, 'config', 'strategy_manifest.json.example')
+      { live: path.join(PROJ_ROOT, 'config',   'strategy_manifest.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'strategy_manifest.json.example')
       },
-      { live: path.join(PROJ_ROOT, 'config', 'difficulty_bootstrap.csv'),
-         bak: path.join(PROJ_ROOT, 'config', 'difficulty_bootstrap.csv.sample')
+      { live: path.join(PROJ_ROOT, 'config',   'difficulty.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'difficulty.json.example')
+      },
+      { live: path.join(PROJ_ROOT, 'config',   'dynamic_blocks.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'dynamic_blocks.json.example')
+      },
+      { live: path.join(PROJ_ROOT, 'config',   'internet.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'internet.json.example')
+      },
+      { live: path.join(PROJ_ROOT, 'config',   'difficulty_bootstrap.csv'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'difficulty_bootstrap.csv.sample')
       }
    ];
    for (const file of configFiles) {
@@ -50,10 +59,12 @@ function initializeEnvironment() {
          fs.writeFileSync(file.live, modifiedContent, 'utf8');
       }
    }
+}
 
-   /* Read the environment */
+function populateFilepaths() {
+   /* Read and populate the environment */
    dotenv.config();
-   CONFIG.sim = {
+   CONFIG.env = {
       simDepth:   Number(process.env.SIM_DEPTH),
       simRounds:  isNaN(parseInt(process.env.SIM_ROUNDS))
                 ? String(process.env.SIM_ROUNDS)
@@ -62,36 +73,46 @@ function initializeEnvironment() {
       workerRam:  Number(process.env.WORKER_RAM),
       dataMode:   String(process.env.DATA_MODE),
       logMode:    String(process.env.LOG_MODE),
-      diffTarget: Number(process.env.DIFFICULTY_TARGET_V2),
-      diffWindow: Number(process.env.DIFFICULTY_WINDOW),
-      diffLag:    Number(process.env.DIFFICULTY_LAG),
-      diffCut:    Number(process.env.DIFFICULTY_CUT),
-      hashrate:   Number(process.env.NETWORK_HASHRATE),
-      blockSize:  Number(process.env.BLOCK_SIZE),
-      seed:       Number(process.env.SEED) >>> 0,
-      ping:       Number(process.env.PING),
-      cv:         Number(process.env.CV),
-      mbps:       Number(process.env.MBPS),
-      ntpStdev:   Number(process.env.NTP_STDEV)
-   };
-}
+   }
 
-function populateFilepaths() {
+   /* Specify and parse the config json files */
    CONFIG.config = {
-      history:  path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv'),
-      pools:    path.join(PROJ_ROOT, 'config/pools.json'),
-      manifest: path.join(PROJ_ROOT, 'config/strategy_manifest.json'),
-      env:      path.join(PROJ_ROOT, '.env')
-   };
+      env:        path.join(PROJ_ROOT, '.env'),
+      pools:      path.join(PROJ_ROOT, 'config/pools.json'),
+      manifest:   path.join(PROJ_ROOT, 'config/strategy_manifest.json'),
+      internet:   path.join(PROJ_ROOT, 'config/internet.json'),
+      difficulty: path.join(PROJ_ROOT, 'config/difficulty.json'),
+      history:    path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv'),
+      dynamic:    path.join(PROJ_ROOT, 'config/dynamic_blocks.json'),
+   }
+   CONFIG.parsed = {
+      manifest:   JSON.parse(fs.readFileSync(CONFIG.config.manifest, 'utf8')),
+      pools:      JSON.parse(fs.readFileSync(CONFIG.config.pools, 'utf8'),
+                            (k, v) => (k.startsWith('Comment') ? undefined : v)),
+      difficulty: JSON.parse(fs.readFileSync(CONFIG.config.difficulty, 'utf8')),
+      internet:   JSON.parse(fs.readFileSync(CONFIG.config.internet, 'utf8')),
+      dynamic:    JSON.parse(fs.readFileSync(CONFIG.config.dynamic, 'utf8')),
+   }
 
-   CONFIG.parsed.manifest = JSON.parse(fs.readFileSync(CONFIG.config.manifest, 'utf8'));
-   CONFIG.parsed.pools    = JSON.parse(fs.readFileSync(CONFIG.config.pools, 'utf8'),
-                            (k, v) => (k.startsWith('Comment') ? undefined : v));
+   // Simulation parameters from parsed JSON files
+   CONFIG.sim = {
+      diffTarget: Number(CONFIG.parsed.difficulty.DIFFICULTY_TARGET_V2),
+      diffWindow: Number(CONFIG.parsed.difficulty.DIFFICULTY_WINDOW),
+      diffLag:    Number(CONFIG.parsed.difficulty.DIFFICULTY_LAG),
+      diffCut:    Number(CONFIG.parsed.difficulty.DIFFICULTY_CUT),
+      hashrate:   Number(CONFIG.parsed.difficulty.NETWORK_HASHRATE),
+      blockSize:  Number(CONFIG.parsed.dynamic.BLOCK_SIZE),
+      seed:       Number(CONFIG.parsed.internet.SEED) >>> 0,
+      ping:       Number(CONFIG.parsed.internet.PING),
+      cv:         Number(CONFIG.parsed.internet.CV),
+      mbps:       Number(CONFIG.parsed.internet.MBPS),
+      ntpStdev:   Number(CONFIG.parsed.internet.NTP_STDEV)
+   };
 
    CONFIG.log = {                        // Presence of CONFIG.log.<file> activates the log
-      info:  CONFIG.sim.logMode?.includes('info')  && path.join(PROJ_ROOT, 'logs/info.log'),
-      probe: CONFIG.sim.logMode?.includes('probe') && path.join(PROJ_ROOT, 'logs/probe.log'),
-      stats: CONFIG.sim.logMode?.includes('stats') && path.join(PROJ_ROOT, 'logs/stats.log'),
+      info:  CONFIG.env.logMode?.includes('info')  && path.join(PROJ_ROOT, 'logs/info.log'),
+      probe: CONFIG.env.logMode?.includes('probe') && path.join(PROJ_ROOT, 'logs/probe.log'),
+      stats: CONFIG.env.logMode?.includes('stats') && path.join(PROJ_ROOT, 'logs/stats.log'),
       error: path.join(PROJ_ROOT, 'logs/main_error.log')
    };
 
@@ -101,7 +122,7 @@ function populateFilepaths() {
    const numbers  = files.map(f => f.match(/^(\d+)_/)).filter(Boolean).map(m => +m[1]);
    CONFIG.runId   = String((numbers.length ? Math.max(...numbers) : 0) + 1).padStart(3, '0');
    const runId    = CONFIG.runId;
-   const mode     = CONFIG.sim.dataMode;
+   const mode     = CONFIG.env.dataMode;
 
    CONFIG.run = {   // Static run details saved to the data directory (no stream required)  
       history:  path.join(DATA_DIR, `${runId}_historical_blocks.csv`),
@@ -125,11 +146,11 @@ async function conductChecks() {
    if (!fs.existsSync(CONFIG.config.history))
       throw new Error(`Missing history file: ${CONFIG.config.history}`);
 
-   if (!['simple', 'metrics', 'full'].includes(CONFIG.sim.dataMode))
+   if (!['simple', 'metrics', 'full'].includes(CONFIG.env.dataMode))
       throw new Error('DATA_MODE must be either: "simple", "metrics", or "full"');
 
-   if (typeof CONFIG.sim.simRounds !== 'number'
-      && CONFIG.sim.simRounds !== 'sweep' && CONFIG.sim.simRounds !== 'sweeps')
+   if (typeof CONFIG.env.simRounds !== 'number'
+      && CONFIG.env.simRounds !== 'sweep' && CONFIG.env.simRounds !== 'sweeps')
          throw new Error('SIM_ROUNDS must either be an integer, or the string: sweep');
 
    /* CONFIG.log.error always exists, so it has to be excluded from logMode test/check */
@@ -137,16 +158,21 @@ async function conductChecks() {
    if (nonErrorLogs.some(Boolean)) {
       for (const log of Object.values(CONFIG.log))
          if (log && fs.existsSync(log)) fs.unlinkSync(log);
-      if (CONFIG.sim.simRounds > 1)
+      if (CONFIG.env.simRounds > 1)
          throw new Error('Log mode enabled, dont run multiple rounds in .env');
-      if (CONFIG.sim.simDepth > 1000)
+      if (CONFIG.env.simDepth > 1000)
          console.warn('WARNING: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
    }
 
-   for (const key in CONFIG.sim) {
-      if (CONFIG.sim[key] === undefined ||
-         (typeof CONFIG.sim[key] === 'number' && isNaN(CONFIG.sim[key])))
+   for (const key in CONFIG.env) {
+      if (CONFIG.env[key] === undefined ||
+         (typeof CONFIG.env[key] === 'number' && isNaN(CONFIG.env[key])))
             throw new Error(`Invalid or missing environment variable: ${key.toUpperCase()}`);
+   }
+
+   for (const key in CONFIG.sim) {
+      if (CONFIG.sim[key] === undefined || (typeof CONFIG.sim[key] !== 'number'))
+         throw new Error(`Invalid or missing configuration variable: ${key.toUpperCase()}`);
    }
 
    let totalHPP = 0;

@@ -198,7 +198,7 @@ function runSimCoreInWorker(idx, CONFIG, state) {
       const worker = new Worker(
          new URL('./sim_core.js', import.meta.url), {
             workerData: { idx, CONFIG, state },
-            resourceLimits: { maxOldGenerationSizeMb: CONFIG.sim.workerRam },
+            resourceLimits: { maxOldGenerationSizeMb: CONFIG.env.workerRam },
          }
       );
       let result;
@@ -233,8 +233,8 @@ async function main() {
    initializeResultsStorage(state);    // Set up streams to receive worker returned data
 
    /* Prepare the worker callback function */
-   const limit = pLimit(CONFIG.sim.workers);
-   const jobs  = Array.from({ length: CONFIG.sim.simRounds }, (_, idx) => {
+   const limit = pLimit(CONFIG.env.workers);
+   const jobs  = Array.from({ length: CONFIG.env.simRounds }, (_, idx) => {
       return { idx , promise: limit( () => runSimCoreInWorker(idx, CONFIG, state)) };
    });
 

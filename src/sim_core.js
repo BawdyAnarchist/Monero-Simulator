@@ -15,7 +15,7 @@ import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
 
 /* Data objects passed by the worker manager in main */
 const { idx, CONFIG, state } = workerData;
-const { sim, parsed, log } = CONFIG;
+const { env, sim, parsed, log } = CONFIG;
 const { pools, blocks, startTip, diffWindows } = state;
 
 /* Critical simulation parameters */
@@ -556,7 +556,7 @@ async function runSimCore() {
 
    /* Event queue engine. Continuous event creation and execution until depth is reached */
    let activeEvent;
-   const simDepth = blocks[startTip].simClock + (sim.simDepth * 3600);
+   const simDepth = blocks[startTip].simClock + (env.simDepth * 3600);
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       if (activeEvent.simClock > simDepth) break;
       info(() => `SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
