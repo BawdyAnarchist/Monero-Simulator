@@ -6,52 +6,27 @@
 // SECTION 1: IMPORTS, CONSTANTS, GLOBAL STATE
 // -----------------------------------------------------------------------------
 
-import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { parentPort, workerData } from 'node:worker_threads';
 import v8 from 'v8';
-import 'dotenv/config';
 import { gzipSync } from 'node:zlib';
 import TinyQueue from 'tinyqueue';
 import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
 
-const __filename  = fileURLToPath(import.meta.url);
-const __dirname   = path.dirname(__filename);
-
 /* Data passed by the worker manager in main. They become global pointers (can still mutate them) */ 
-const {
-   idx,
-   meta:  { simDepth, dataMode },
-   state: { pools, blocks, startTip, diffWindows },
-   LOG,
-} = workerData;
-
-/* Difficulty adjustment constants */
-const DIFFICULTY_TARGET_V2 = Number(process.env.DIFFICULTY_TARGET_V2);
-const DIFFICULTY_WINDOW    = Number(process.env.DIFFICULTY_WINDOW);
-const DIFFICULTY_CUT       = Number(process.env.DIFFICULTY_CUT);
-const DIFFICULTY_LAG       = Number(process.env.DIFFICULTY_LAG);
+const { idx, CONFIG, state } = workerData;
+const { sim, parsed, log } = CONFIG;
+const { pools, blocks, startTip, diffWindows } = state;
 
 /* Critical simulation parameters */
-const MANIFEST   = JSON.parse(fs.readFileSync(
-                   path.join(__dirname,'../config/strategy_manifest.json'),'utf8'));
-const PING       = Number(process.env.PING);             // Avg network ping (ms)
-const MBPS       = Number(process.env.MBPS);             // Avg network bandwidth (Mbps)
-const CV         = Number(process.env.CV);               // Coefficient of variance
-const BLOCK_SIZE = Number(process.env.BLOCK_SIZE);       // (kb)
-const SEED       = Number(process.env.SEED) + idx >>> 0; // Reproducible seed, cast as uint32
-const rng        = randomLcg(SEED);                      // Quality, reproducible randomness
-let   simNoise   = {};                                   // Will hold probability dist functions
+const rng        = randomLcg((sim.seed + idx) >>> 0);
+let   simNoise   = {};
 let   has_exited = false;
 
-/* Loggers */
-LOG.info  = [];
-LOG.probe = [];
-LOG.stats = [];
-const info  = (msg) => { if (!LOG.INFO)  return; LOG.info.push(msg()); }
-const probe = (msg) => { if (!LOG.PROBE) return; LOG.probe.push(msg()); }
-const stats = (msg) => { if (!LOG.STATS) return; LOG.stats.push(msg()); }
+const LOG = { info:  [], probe: [], stats: [] };
+const info  = (msg) => { if (!log.info)  return; LOG.info.push(msg()); }
+const probe = (msg) => { if (!log.probe) return; LOG.probe.push(msg()); }
+const stats = (msg) => { if (!log.stats) return; LOG.stats.push(msg()); }
 
 
 // -----------------------------------------------------------------------------
@@ -65,12 +40,13 @@ function makeNoiseFunctions() {
    Even under normal network, tail-end ping-time spikes are common. They're part of the model.
 */
    /* Ping was used in .env for familiarity, but sim uses one-way-delay (owd) */
-   const ping    = PING / 1e3;                                // ms -> sec (sim consistency)
+   const ping    = sim.ping / 1e3;                            // ms -> sec (sim consistency)
+   const CV      = sim.cv;
    const sigma   = Math.sqrt(Math.log(1 + CV*CV));            // pool-to-pool (P2P)
    const pingMu  = Math.log(ping) - 0.5 * sigma * sigma;      // One-way latency
    const sigma2  = Math.sqrt(Math.log(1 + CV*CV));            // Pool-to-hasher (P2H) penalty
    const pingMu2 = Math.log(ping*2) - 0.5 * sigma2 * sigma2;  // One-way latency
-   const txTime  = BLOCK_SIZE / (MBPS * 1024 / 8)             // Block tx time. Mbps -> KB/sec
+   const txTime  = sim.blockSize / (sim.mbps * 1024 / 8)      // Block tx time. Mbps -> KB/sec
    const txMu    = Math.log(txTime) - 0.5 * sigma * sigma;
 
    /* Ping spike model. Rare/random delays, scale up by ping to mimic network degradation */
@@ -120,8 +96,8 @@ async function makeStrategiesFunctions() {
    be in main.js, but worker threads can't pass functions. Must build it here, inside the worker.
  */
    let strategies = Object.create(null);
-   for (const strategy of MANIFEST) {
-      const module = await import(path.resolve(__dirname, strategy.module));
+   for (const strategy of parsed.manifest) {
+      const module = await import(path.resolve(CONFIG.root, 'src', strategy.module));
       if (typeof module.setLog  === 'function') module.setLog(info);      // Inject into pool agent
       if (typeof module.setLog2 === 'function') module.setLog2(probe); // Inject into pool agent
       const entryPoint = strategy.entryPoint;
@@ -146,7 +122,7 @@ function reconstructDiffWindow(blockId) {
    info(() => `reconstructDiffWindow: diffWindow missing for ${blockId}. Reconstructing it ...`);
    const diffWindow  = [];
    let loopId = blockId;
-   for (let i = 0; i < (DIFFICULTY_WINDOW + DIFFICULTY_LAG) && loopId; i++) {
+   for (let i = 0; i < (sim.diffWindow + sim.diffLag) && loopId; i++) {
       const b = blocks[loopId];
       diffWindow.push({ timestamp: b.timestamp, cumDifficulty: b.cumDifficulty, });
       loopId = b.prevId;
@@ -224,7 +200,7 @@ function calculateMetrics(results) {
 
       /* Nothing to report. Guard against zeros / divide by zero */
       if (totalCount === 0 || reorgList.length === 0) {
-         metrics[id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
+         metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
          continue;
       }
       /* Calculate metrics for the pool and add to the metrics object */
@@ -249,21 +225,33 @@ function calculateMetrics(results) {
      const stdev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
      summary[key] = { mean, stdev };
    });
-
+   results.metrics = metrics;
    results.summary = summary;
 }
 
 function prepareDataExport(results) {
 /* Final data formatting applied here to keep load off of main.js for parallelizable tasks. */
 
-   /* Metrics summary */
+   results.headers = {};   // Storage object to write the headers later
+
+   /* Summarized metrics*/
    const summaryKeys   = Object.keys(results.summary);
    const summaryValues = summaryKeys.flatMap(key => [
       results.summary[key].mean.toFixed(4),
       results.summary[key].stdev.toFixed(4),
    ]);
    results.summary = [idx, ...summaryValues].join(',') + '\n';
-   results.summary_header = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
+   results.headers['summary'] = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
+
+   /* Metrics per pool */
+   const metricFields  = Object.keys(Object.values(results.metrics)[0]);
+   const metricsResult = Object.values(pools)
+      .filter(p => results.metrics[p.id])
+      .map(p => [idx, p.id, ...metricFields.map(k =>
+         results.metrics[p.id][k].toFixed(4))].join(','))
+      .join('\n') + '\n';
+   results.metrics = metricsResult;
+   results.headers['metrics'] = ['idx', 'poolId', ...metricFields].join(',');
 
    /* Pool scores */
    const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
@@ -275,7 +263,7 @@ function prepareDataExport(results) {
       );
    });
    results.scores = gzipSync(Buffer.from(scoresResults.join('\n') + '\n'));
-   results.scores_header = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
+   results.headers['scores'] = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
 
    /* Blocks */
    const blockFields   = Object.keys(blocks[startTip]);
@@ -284,7 +272,7 @@ function prepareDataExport(results) {
       .map(b => [idx, ...blockFields.map(k => b[k])].join(','))
       .join('\n') + '\n';
    results.blocks = gzipSync(Buffer.from(blocksResults));
-   results.blocks_header = ['idx', ...blockFields].join(',');
+   results.headers['blocks'] = ['idx', ...blockFields].join(',');
 
    /* Format the log buffers */
    LOG.info  = LOG.info.join('\n');
@@ -304,7 +292,7 @@ function exitSimWorker(exit_code, results) {
          `completed with heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB`);
    }
    parentPort.postMessage(
-      { results: results, LOG: LOG },
+      { results: results, log: LOG },
       [ results.blocks.buffer, results.scores.buffer ]
    );
 
@@ -392,7 +380,13 @@ function calculateNextDifficulty(blockId) {
    Full block difficulty adjustment. diffWindows has the timestamps and cumDifficulty of each
    contender chaintip. We extract and sort those arrays to look like difficulty.cpp.
 */
-   if (!diffWindows[blockId]) reconstructDiffWindow(blockId);     // Safety for edge cases
+   /* Difficulty adjustment constants */
+   const DIFFICULTY_TARGET_V2 = sim.diffTarget;
+   const DIFFICULTY_WINDOW    = sim.diffWindow;
+   const DIFFICULTY_CUT       = sim.diffCut;
+   const DIFFICULTY_LAG       = sim.diffLag;
+
+   if (!diffWindows[blockId]) reconstructDiffWindow(blockId);           // Safety for edge cases
 
    const diffWindow = [...diffWindows[blockId]]
       .slice(0, -DIFFICULTY_LAG).slice(-DIFFICULTY_WINDOW)  // Discard recent, ensure 720 length
@@ -532,7 +526,6 @@ async function runSimCore() {
 */ 
    console.log(`[${timeNow()}] Running round: ${idx.toString().padStart(3, '0')}...`);
    simNoise = makeNoiseFunctions();        // Probability distribution functions for sim realism
-
    const strategies = await makeStrategiesFunctions();  // All strategies functions needed later 
 
    /* Historical chaintip needs nxtDifficulty for first event. Calculate it now */
@@ -555,6 +548,7 @@ async function runSimCore() {
 
    /* Event queue engine. Continuous event creation and execution until depth is reached */
    let activeEvent;
+   const simDepth = blocks[startTip].simClock + (sim.simDepth * 3600);
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       if (activeEvent.simClock > simDepth) break;
       info(() => `SimCoreEngine:     ${activeEvent.simClock.toFixed(7)} ` +
