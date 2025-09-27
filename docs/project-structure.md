@@ -57,7 +57,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 **SIM_DEPTH**    
 &nbsp;&nbsp;&nbsp;&nbsp;- The number of hours to simulate in an isolated SIM\_ROUND.   
 &nbsp;&nbsp;&nbsp;&nbsp;- All rounds are single-threaded.   
-&nbsp;&nbsp;&nbsp;&nbsp;- Expect approximately 7 seconds per 1000 simulated hours.
+&nbsp;&nbsp;&nbsp;&nbsp;- Approximately: 4 sec / 1000 sim-hours (summary only); 7 sec / 1000 sim-hours (full data output).
 
 **SIM_ROUNDS**    
 &nbsp;&nbsp;&nbsp;&nbsp;- Two modes: [integer|sweep].    

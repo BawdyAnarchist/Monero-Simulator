@@ -225,7 +225,8 @@ function calculateMetrics(results) {
      const stdev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
      summary[key] = { mean, stdev };
    });
-   results.metrics = metrics;
+
+   if (CONFIG.data.metrics) results.metrics = metrics;   // Only save per-pool metrics if flagged
    results.summary = summary;
 }
 
@@ -234,45 +235,51 @@ function prepareDataExport(results) {
 
    results.headers = {};   // Storage object to write the headers later
 
-   /* Summarized metrics*/
+   /* Summarized metrics */
    const summaryKeys   = Object.keys(results.summary);
    const summaryValues = summaryKeys.flatMap(key => [
       results.summary[key].mean.toFixed(4),
       results.summary[key].stdev.toFixed(4),
    ]);
-   results.summary = [idx, ...summaryValues].join(',') + '\n';
+   results.summary = [idx, ...summaryValues].join(',') + '\n';          // Always saved to data/
    results.headers['summary'] = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
 
    /* Metrics per pool */
-   const metricFields  = Object.keys(Object.values(results.metrics)[0]);
-   const metricsResult = Object.values(pools)
-      .filter(p => results.metrics[p.id])
-      .map(p => [idx, p.id, ...metricFields.map(k =>
-         results.metrics[p.id][k].toFixed(4))].join(','))
-      .join('\n') + '\n';
-   results.metrics = metricsResult;
-   results.headers['metrics'] = ['idx', 'poolId', ...metricFields].join(',');
+   if (CONFIG.data.metrics) {
+      const metricFields  = Object.keys(Object.values(results.metrics)[0]);
+      const metricsResult = Object.values(pools)
+         .filter(p => results.metrics[p.id])
+         .map(p => [idx, p.id, ...metricFields.map(k =>
+            results.metrics[p.id][k].toFixed(4))].join(','))
+         .join('\n') + '\n';
+      results.metrics = metricsResult;
+      results.headers['metrics'] = ['idx', 'poolId', ...metricFields].join(',');
+   }
 
    /* Pool scores */
-   const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
-   const scoresResults = Object.values(pools).flatMap(p => {
-      const scores = Object.entries(p.scores);
-      return scores.map(([blockId, score]) =>                  // Formatting
-         [idx, p.id, blockId, ...scoreFields.map(k => k === 'simClock'
-            ? score[k].toFixed(7) : score[k])].join(',')
-      );
-   });
-   results.scores = gzipSync(Buffer.from(scoresResults.join('\n') + '\n'));
-   results.headers['scores'] = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
+   if (CONFIG.data.scores) {
+      const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
+      const scoresResults = Object.values(pools).flatMap(p => {
+         const scores = Object.entries(p.scores);
+         return scores.map(([blockId, score]) =>                  // Formatting
+            [idx, p.id, blockId, ...scoreFields.map(k => k === 'simClock'
+               ? score[k].toFixed(7) : score[k])].join(',')
+         );
+      });
+      results.scores = gzipSync(Buffer.from(scoresResults.join('\n') + '\n'));
+      results.headers['scores'] = ['idx', 'poolId', 'blockId', ...scoreFields].join(',');
+   }
 
    /* Blocks */
-   const blockFields   = Object.keys(blocks[startTip]);
-   const blocksResults = Object.values(blocks)
-      .filter(b => b.height > blocks[startTip].height)            // Filter out historical blocks
-      .map(b => [idx, ...blockFields.map(k => b[k])].join(','))
-      .join('\n') + '\n';
-   results.blocks = gzipSync(Buffer.from(blocksResults));
-   results.headers['blocks'] = ['idx', ...blockFields].join(',');
+   if (CONFIG.data.blocks) {
+      const blockFields   = Object.keys(blocks[startTip]);
+      const blocksResults = Object.values(blocks)
+         .filter(b => b.height > blocks[startTip].height)         // Filter out historical blocks
+         .map(b => [idx, ...blockFields.map(k => b[k])].join(','))
+         .join('\n') + '\n';
+      results.blocks = gzipSync(Buffer.from(blocksResults));
+      results.headers['blocks'] = ['idx', ...blockFields].join(',');
+   }
 
    /* Format the log buffers */
    LOG.info  = LOG.info.join('\n');
@@ -293,7 +300,7 @@ function exitSimWorker(exit_code, results) {
    }
    parentPort.postMessage(
       { results: results, log: LOG },
-      [ results.blocks.buffer, results.scores.buffer ]
+      [ results.blocks?.buffer, results.scores?.buffer ].filter(Boolean)  // No buffer if null
    );
 
    setImmediate(() => process.exit(exit_code));
