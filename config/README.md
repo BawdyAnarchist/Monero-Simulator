@@ -3,7 +3,8 @@
 
 # Pools and Strategies Quick Reference
 
-**Do not modify the *.example* default files. Just run `npm start`, and they'll be copied automatically.**
+**This directory will not be populated until your run `npm start` for the first time.**   
+**Files are copied from [default/](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/defaults) directory**
 
 ---
 
