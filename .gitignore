@@ -1,8 +1,12 @@
 .env
 *.swp
+!config/.gitkeep
+config/difficulty.json
+config/difficulty_bootstrap.csv
+config/internet.json
+config/dynamic_blocks.json
 config/pools.json
 config/strategy_manifest.json
-config/difficulty_bootstrap.csv
 data/*
 !data/sample_data/
 !data/sort_results.js
