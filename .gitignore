@@ -1,6 +1,5 @@
 .env
 *.swp
-!config/.gitkeep
 config/difficulty.json
 config/difficulty_bootstrap.csv
 config/internet.json
