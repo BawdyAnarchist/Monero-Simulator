@@ -81,7 +81,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 &nbsp;&nbsp;&nbsp;&nbsp;- 3 modes: [simple|metrics|full]. The amount/type of data output to [data/](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data).   
 &nbsp;&nbsp;&nbsp;&nbsp;- simple: provides one line of aggregated chain health metrics per round, but no scores or blocks.   
 &nbsp;&nbsp;&nbsp;&nbsp;- metrics: per-pool chain health metrics per round, but no per-pool scores, and no blocks.   
-&nbsp;&nbsp;&nbsp;&nbsp;- full: output all blocks, per-pool scores, per-pool metrics. Consumes ~11 MB per 1000 sim-hours.  
+&nbsp;&nbsp;&nbsp;&nbsp;- full: output all blocks, per-pool scores, per-pool metrics. Consumes ~11 MB disk space per 1000 sim-hours.  
 
 **LOG_MODE**    
 &nbsp;&nbsp;&nbsp;&nbsp;- info,probe,stats (or any combination, or leave empty for no log). Output: [logs/info.log](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs).   
@@ -90,6 +90,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 &nbsp;&nbsp;&nbsp;&nbsp;- stats: Audit the stochastic parameters as they're generated in real-time for sim events.  
 &nbsp;&nbsp;&nbsp;&nbsp;- Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
 &nbsp;&nbsp;&nbsp;&nbsp;- The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
+&nbsp;&nbsp;&nbsp;&nbsp;- *WARNING: High SIM_DEPTH values (>1000) can create large logs, and consume significantly more RAM (heap)*    
    
 **SEED**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Randomness seed incremented each SIM\_ROUND, for fully reproducible runs.    
@@ -122,11 +123,11 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 &nbsp;&nbsp;&nbsp;&nbsp;- To simulate network degradation, here are some reference values:    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **70** - normal network   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **150** - loaded network   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **500** - minor degradation
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **500** - minor degradation   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **1000** - medium degradation   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **3000** - large disruption   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **9000** - heavy global disruption   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **15000** - effective outage
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **15000** - effective outage   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; *If you're simulating network degradation, remember to adjust MBPS lower.*  
 
 **CV**   
