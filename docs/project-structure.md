@@ -10,19 +10,22 @@ High level overview of the environment and runtime.
 ## Directory Tree
 
 **Monero_sim/**  
-├─ **.env** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runtime parameters (derived from [default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env))*    
-├─ **config/** &nbsp;&nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
-│&nbsp;&nbsp;&nbsp;├─ default.env &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *example .env -> copied on first run*   
+├─ **.env** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runtime parameters (derived from [default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env))*    
+├─ **config/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
+│&nbsp;&nbsp;&nbsp;├─ difficulty.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Diffculty algorithm parameters*    
 │&nbsp;&nbsp;&nbsp;├─ difficulty_bootstrap.csv &nbsp; # *historical data for difficulty adjustment (28 Feb 2025)*   
+│&nbsp;&nbsp;&nbsp;├─ dynamic_blocks.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Just BLOCK_SIZE (for now). Required for network realism*   
+│&nbsp;&nbsp;&nbsp;├─ internet.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Network latency realism parameters (ping)*    
 │&nbsp;&nbsp;&nbsp;├─ pools.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;# *set the hashpower and strategy code for each pool*   
 │&nbsp;&nbsp;&nbsp;└─ strategy_manifest.json &nbsp; # *defines each unique strategy configuration*   
-├─ **data/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim results*   
-├─ **docs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; #  *reference material*   
-├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
+├─ **data/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim results*   
+├─ **defaults/** &nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
+│&nbsp;&nbsp;&nbsp;├─ env.example &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *example .env -> copied on first run*   
+├─ **docs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; #  *reference material*   
+├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
 │&nbsp;&nbsp;&nbsp;├─ info.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Intra-event operation details/flow.*   
 │&nbsp;&nbsp;&nbsp;└─ probe.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *user-inlined `probe()` function for detailed probing.*     
-│     
-└─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*     
+└─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*     
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ config_init.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *if necessary, copies the sample env and config files*   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ main.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  # *orchestrates simulation setup, parallel workers, and data output*   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ sim_core.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runs an isolated SIM\_ROUND. This is the event engine and blockchain physics*   
@@ -44,7 +47,7 @@ Command options are defined in [package.json](https://github.com/BawdyAnarchist/
 | **`npm run log:stats`**  | Full data, info.log, and stats.log.     
 | **`npm run lint`**  | A very basic eslint setup.
 
-*Recommend SIM\_DEPTH < 1000 with **log**, to limit filesize.*   
+*When running the log, recommend SIM\_DEPTH < 1000 to limit heap and filesize growth.*   
 
 Results (data) saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/data)   
 Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/main/logs)   
@@ -88,24 +91,30 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 &nbsp;&nbsp;&nbsp;&nbsp;- Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
 &nbsp;&nbsp;&nbsp;&nbsp;- The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
    
+**SEED**   
+&nbsp;&nbsp;&nbsp;&nbsp;- Randomness seed incremented each SIM\_ROUND, for fully reproducible runs.    
+&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but it's converted to uint32 inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js)    
+
+## *`config/difficulty.json`*
+
 **DIFFICULTY_TARGET_V2**  
 **DIFFICULTY_WINDOW**   
 **DIFFICULTY_LAG**         
 **DIFFICULTY_CUT**     
 *See Monero's source code for more details. The sim difficulty adjustment was ported from [difficulty.cpp](https://github.com/monero-project/monero/blob/master/src/cryptonote_basic/difficulty.cpp)*   
 
-**NETWORK_HASHRATE**     
-&nbsp;&nbsp;&nbsp;&nbsp; - Total network hashes per second. Remains constant throughout the sim.   
-&nbsp;&nbsp;&nbsp;&nbsp; - This must be aligned with [difficulty.bootstrap.csv](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/difficulty_bootstrap.csv.sample) or it will cause inaccurate block times.   
-&nbsp;&nbsp;&nbsp;&nbsp; - Per-pool absolute hashrate is derived from this and the hash power percentage in [pools.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/pools.json.example)    
+## *`config/dynamic_blocks.json`*
 
 **BLOCK_SIZE**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Size of each block, in kilobytes. Remains constant throughout the sim.   
 &nbsp;&nbsp;&nbsp;&nbsp;- Fluffy blocks are assumed, but certain conditions will cause a block propagation delay to activate.   
 
-**SEED**   
-&nbsp;&nbsp;&nbsp;&nbsp;- Randomness seed incremented each SIM\_ROUND, for fully reproducible runs.    
-&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but it's converted to uint32 inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js)    
+## *`config/internet.json`*
+
+**NETWORK_HASHRATE**     
+&nbsp;&nbsp;&nbsp;&nbsp; - Total network hashes per second. Remains constant throughout the sim.   
+&nbsp;&nbsp;&nbsp;&nbsp; - This must be aligned with [difficulty.bootstrap.csv](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/difficulty_bootstrap.csv.sample) or it will cause inaccurate block times.   
+&nbsp;&nbsp;&nbsp;&nbsp; - Per-pool absolute hashrate is derived from this and the hash power percentage in [pools.json](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/pools.json.example)    
 
 **PING**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Average ping, in milliseconds, between pools (round trip time).    
