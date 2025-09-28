@@ -20,7 +20,8 @@ High level overview of the environment and runtime.
 │&nbsp;&nbsp;&nbsp;└─ strategy_manifest.json &nbsp; # *defines each unique strategy configuration*   
 ├─ **data/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim results*   
 ├─ **defaults/** &nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
-│&nbsp;&nbsp;&nbsp;├─ env.example &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *example .env -> copied on first run*   
+│&nbsp;&nbsp;&nbsp;├─ env.example &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *example .env -> copied on first run*   
+│&nbsp;&nbsp;&nbsp;└─ *[ ..other example files.. ]*   
 ├─ **docs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; #  *reference material*   
 ├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
 │&nbsp;&nbsp;&nbsp;├─ info.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Intra-event operation details/flow.*   
