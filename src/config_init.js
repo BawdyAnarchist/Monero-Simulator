@@ -73,6 +73,7 @@ function populateFilepaths() {
       workerRam:  Number(process.env.WORKER_RAM),
       dataMode:   String(process.env.DATA_MODE),
       logMode:    String(process.env.LOG_MODE),
+      seed:       Number(process.env.SEED) >>> 0,
    }
 
    /* Specify and parse the config json files */
@@ -102,7 +103,6 @@ function populateFilepaths() {
       diffCut:    Number(CONFIG.parsed.difficulty.DIFFICULTY_CUT),
       hashrate:   Number(CONFIG.parsed.difficulty.NETWORK_HASHRATE),
       blockSize:  Number(CONFIG.parsed.dynamic.BLOCK_SIZE),
-      seed:       Number(CONFIG.parsed.internet.SEED) >>> 0,
       ping:       Number(CONFIG.parsed.internet.PING),
       cv:         Number(CONFIG.parsed.internet.CV),
       mbps:       Number(CONFIG.parsed.internet.MBPS),
@@ -126,9 +126,7 @@ function populateFilepaths() {
 
    CONFIG.run = {   // Static run details saved to the data directory (no stream required)  
       history:  path.join(DATA_DIR, `${runId}_historical_blocks.csv`),
-      env:      path.join(DATA_DIR, `${runId}_env.txt`),
-      pools:    path.join(DATA_DIR, `${runId}_pools.json`),
-      manifest: path.join(DATA_DIR, `${runId}_strategy_manifest.json`),
+      snapshot: path.join(DATA_DIR, `${runId}_config_snapshot.json`),
    }
 
    CONFIG.data = {  // Data streams will be created for all populated filepaths

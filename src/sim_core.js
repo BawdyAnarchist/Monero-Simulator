@@ -19,7 +19,7 @@ const { env, sim, parsed, log } = CONFIG;
 const { pools, blocks, startTip, diffWindows } = state;
 
 /* Critical simulation parameters */
-const rng        = randomLcg(sim.seed + idx);
+const rng        = randomLcg(env.seed + idx);
 let   simNoise   = {};
 let   has_exited = false;
 

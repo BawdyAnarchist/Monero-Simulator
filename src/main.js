@@ -15,7 +15,7 @@ import {randomLcg, randomNormal } from 'd3-random';
 
 import { CONFIG } from './config_init.js';
 
-const rng = randomLcg(CONFIG.sim.seed);  // Required to set per-pool ntpDrift
+const rng = randomLcg(CONFIG.env.seed);  // Required to set per-pool ntpDrift
 const streams = new Object();            // Write streams for recording results per round
 let   headerWritten = false
 
@@ -32,12 +32,9 @@ function timeNow() {
 // -----------------------------------------------------------------------------
 
 function initializeResultsStorage(state) {
-   /* Copy the verbatim .env, manifest, and pools (with NTP adjustments) to data/results */
-   const poolsOut = JSON.parse(JSON.stringify(CONFIG.parsed.pools));   // original template
-   for (const id in state.pools) poolsOut[id].ntpDrift = state.pools[id].ntpDrift;
-   fs.writeFileSync(CONFIG.run.pools, JSON.stringify(poolsOut, null, 2));
-   fs.copyFileSync(CONFIG.config.env, CONFIG.run.env);
-   fs.writeFileSync(CONFIG.run.manifest, JSON.stringify(CONFIG.parsed.manifest, null, 2));
+   /* Create and write the consolidated configuration snapshot for this run */
+   const snapshotData = { env: CONFIG.env, sim: CONFIG.sim, parsed: CONFIG.parsed };
+   fs.writeFileSync(CONFIG.run.snapshot, JSON.stringify(snapshotData, null, 2));
 
    /* Initialize the data streams */
    for (const key in CONFIG.data) {
