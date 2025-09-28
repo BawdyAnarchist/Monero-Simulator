@@ -10,7 +10,7 @@ High level overview of the environment and runtime.
 ## Directory Tree
 
 **Monero_sim/**  
-├─ **.env** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runtime parameters (derived from [default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env))*    
+├─ **.env** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runtime parameters (derived from [env.example](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/defaults/env.example))*    
 ├─ **config/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Granular control of pools, strategies, and historical data*   
 │&nbsp;&nbsp;&nbsp;├─ difficulty.json &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Diffculty algorithm parameters*    
 │&nbsp;&nbsp;&nbsp;├─ difficulty_bootstrap.csv &nbsp; # *historical data for difficulty adjustment (28 Feb 2025)*   
@@ -55,7 +55,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 ---
 
 ## *`.env`*
-[config/default.env](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/config/default.env) is copied to the parent directory as *`.env`*. It contains crucial system, runtime, and high-level simulation parameters.
+[defaults/env.example](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/defaults/env.example) is copied to the parent directory as *`.env`*. It contains crucial system, runtime, and high-level simulation parameters.
 
 **SIM_DEPTH**    
 &nbsp;&nbsp;&nbsp;&nbsp;- The number of hours to simulate in an isolated SIM\_ROUND.   
