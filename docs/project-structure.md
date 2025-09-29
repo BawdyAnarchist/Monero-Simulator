@@ -26,12 +26,13 @@ High level overview of the environment and runtime.
 ├─ **logs/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *see next section for logging details*   
 │&nbsp;&nbsp;&nbsp;├─ info.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Intra-event operation details/flow.*   
 │&nbsp;&nbsp;&nbsp;└─ probe.log &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *user-inlined `probe()` function for detailed probing.*     
-└─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*     
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ config_init.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *if necessary, copies the sample env and config files*   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ main.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  # *orchestrates simulation setup, parallel workers, and data output*   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ sim_core.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *runs an isolated SIM\_ROUND. This is the event engine and blockchain physics*   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ plugins/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *pluggable countermeasures/strategies*    
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ unified\_pool\_agent.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *self-contained pool logic & strategy implementation*  
+└─ **src/** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *sim core*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ config_init.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Ingests the tunable config and passes it to main*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ main.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;  # *Initializes shared state, manages parallel workers, and handles data streams*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ round_orchestrator.js &nbsp;&nbsp;&nbsp;&nbsp; # *Setup, housekeeping, analysis, data formatting for the engine*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ sim_engine.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *Core blockchain physics and event processing engine*   
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ plugins/ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *pluggable countermeasures/strategies*    
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ unified\_pool\_agent.js &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # *self-contained pool logic & strategy implementation*     
 
 ---
 
@@ -90,12 +91,12 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 &nbsp;&nbsp;&nbsp;&nbsp;- probe: Secondary isolated log for pinpoint behavior probing. Empty unless you inline the `probe()` function.     
 &nbsp;&nbsp;&nbsp;&nbsp;- stats: Audit the stochastic parameters as they're generated in real-time for sim events.  
 &nbsp;&nbsp;&nbsp;&nbsp;- Recommend SIM\_ROUNDS=1 when running the log, as the files are overwritten each round.   
-&nbsp;&nbsp;&nbsp;&nbsp;- The functions `info()` and `probe()` can only be inlined inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js) and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
+&nbsp;&nbsp;&nbsp;&nbsp;- `info()` and `probe()` can only be inlined inside [round_orchestrator.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/round_orchestrator.js), [sim_engine.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_engine.js), and [unified_pool_agent.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/plugins/unified_pool_agent.js)    
 &nbsp;&nbsp;&nbsp;&nbsp;- *WARNING: High SIM_DEPTH values (>1000) can create large logs, and consume significantly more RAM (heap)*    
    
 **SEED**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Randomness seed incremented each SIM\_ROUND, for fully reproducible runs.    
-&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but it's converted to uint32 inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js)    
+&nbsp;&nbsp;&nbsp;&nbsp;- Can be a number or a string, but ultimately it gets cast as uint32.   
 
 ## *`config/difficulty.json`*
 
@@ -120,7 +121,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 
 **PING**   
 &nbsp;&nbsp;&nbsp;&nbsp;- Average ping, in milliseconds, between pools (round trip time).    
-&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside [sim_core.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/sim_core.js))    
+&nbsp;&nbsp;&nbsp;&nbsp;- Ping between pools-and-hashers is assumed 2x longer than pool-pool (calculated inside [round_orchestrator.js](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/src/round_orchestrator.js))    
 &nbsp;&nbsp;&nbsp;&nbsp;- To simulate network degradation, here are some reference values:    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **70** - normal network   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **150** - loaded network   
@@ -145,7 +146,7 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 
 ---
 
-### See: [docs/sim-core-internals.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/docs/sim-core-internals.md) for additional details on the network physics modeling.
+### See: [docs/sim-physics.md](https://github.com/BawdyAnarchist/Monero-Simulator/blob/main/docs/sim-engine-internals.md) for additional details on the network physics modeling.
 ---
 
 
