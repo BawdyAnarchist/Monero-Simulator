@@ -46,7 +46,10 @@ function initializeEnvironment() {
       },
       { live: path.join(PROJ_ROOT, 'config',   'difficulty_bootstrap.csv'),
          bak: path.join(PROJ_ROOT, 'defaults', 'difficulty_bootstrap.csv.sample')
-      }
+      },
+      { live: path.join(PROJ_ROOT, 'config',   'sweeps.json'),
+         bak: path.join(PROJ_ROOT, 'defaults', 'sweeps.json.example')
+      },
    ];
    for (const file of configFiles) {
       if (!fs.existsSync(file.live)) {                     // Perform copy
@@ -78,6 +81,7 @@ function populateFilepaths() {
    /* Specify and parse the config json files */
    CONFIG.config = {
       env:        path.join(PROJ_ROOT, '.env'),
+      sweeps:     path.join(PROJ_ROOT, 'config/sweeps.json'),
       pools:      path.join(PROJ_ROOT, 'config/pools.json'),
       manifest:   path.join(PROJ_ROOT, 'config/strategy_manifest.json'),
       internet:   path.join(PROJ_ROOT, 'config/internet.json'),
@@ -86,6 +90,8 @@ function populateFilepaths() {
       dynamic:    path.join(PROJ_ROOT, 'config/dynamic_blocks.json'),
    }
    CONFIG.parsed = {
+      sweeps:     CONFIG.env.simRounds.includes('sweep') &&
+                     JSON.parse(fs.readFileSync(CONFIG.config.sweeps, 'utf8')),
       manifest:   JSON.parse(fs.readFileSync(CONFIG.config.manifest, 'utf8')),
       pools:      JSON.parse(fs.readFileSync(CONFIG.config.pools, 'utf8'),
                             (k, v) => (k.startsWith('Comment') ? undefined : v)),
