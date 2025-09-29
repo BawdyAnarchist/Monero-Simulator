@@ -150,7 +150,7 @@ function importHistory(state) {
    diffWindows[blockId] = diffWindow;  
 
    state.blocks      = blocks;
-   state.hScore      = hScore;         // For sim_core startup, score of the historical chaintip
+   state.hScore      = hScore;         // For sim_engine startup, score of the historical chaintip
    state.startTip    = blockId;        // blockId is the chaintip of the historical blocks
    state.diffWindows = diffWindows;
 }
@@ -186,14 +186,14 @@ function initializePools(state) {
 // FLOW CONTROL AND MANAGEMENT
 // -----------------------------------------------------------------------------
 
-function runSimCoreInWorker(idx, CONFIG, state) {
+function callOrchestrationWorker(idx, CONFIG, state) {
 /*
    Spawn a worker that runs one, memory isolated simulation round.
    Returns a promise that resolves with a data object (or rejection/error).
 */
    return new Promise((resolve, reject) => {
       const worker = new Worker(
-         new URL('./sim_core.js', import.meta.url), {
+         new URL('./round_orchestrator.js', import.meta.url), {
             workerData: { idx, CONFIG, state },
             resourceLimits: { maxOldGenerationSizeMb: CONFIG.env.workerRam },
          }
@@ -222,7 +222,7 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
-   /* Conduct checks and prepare state for hand off the sim_core */
+   /* Conduct checks and prepare state for hand off the round_orchestrator */
    const state = new Object();
    state.pools = JSON.parse(JSON.stringify(CONFIG.parsed.pools));
    importHistory(state);               // Add critical historical data to state
@@ -232,14 +232,14 @@ async function main() {
    /* Prepare the worker callback function */
    const limit = pLimit(CONFIG.env.workers);
    const jobs  = Array.from({ length: CONFIG.env.simRounds }, (_, idx) => {
-      return { idx , promise: limit( () => runSimCoreInWorker(idx, CONFIG, state)) };
+      return { idx , promise: limit( () => callOrchestrationWorker(idx, CONFIG, state)) };
    });
 
    /* Await each job’s completion (order of resolution is not important) */
    console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
    for (const { idx, promise } of jobs) {
       try {
-         const { results: results, log: log, } = await promise;  // Destructure results from sim_core
+         const { results: results, log: log, } = await promise;  // Destructure results
          await recordResultsToCSV(results, log);                 // Record results
       } catch (error) {
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);

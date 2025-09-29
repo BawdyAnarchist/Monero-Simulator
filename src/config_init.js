@@ -65,7 +65,6 @@ function populateFilepaths() {
    /* Read and populate the environment */
    dotenv.config();
    CONFIG.env = {
-      simDepth:   Number(process.env.SIM_DEPTH),
       simRounds:  isNaN(parseInt(process.env.SIM_ROUNDS))
                 ? String(process.env.SIM_ROUNDS)
                 : Number(process.env.SIM_ROUNDS),
@@ -97,6 +96,7 @@ function populateFilepaths() {
 
    // Simulation parameters from parsed JSON files
    CONFIG.sim = {
+      simDepth:   Number(process.env.SIM_DEPTH),  // More appropriately belongs as sim parameter
       diffTarget: Number(CONFIG.parsed.difficulty.DIFFICULTY_TARGET_V2),
       diffWindow: Number(CONFIG.parsed.difficulty.DIFFICULTY_WINDOW),
       diffLag:    Number(CONFIG.parsed.difficulty.DIFFICULTY_LAG),

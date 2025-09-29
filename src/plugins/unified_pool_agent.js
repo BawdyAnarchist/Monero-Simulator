@@ -1,6 +1,6 @@
 /*
    Strategy modules isolate a pool's decision making process from the functionally-oriented
-   sim_core. Meaning that core logic for the behavior of any given pool, must be simulated here.
+   sim_engine. Meaning that core logic for the behavior of any given pool, must be simulated here.
    Checking for branch/head validity, requesting missing blocks, determining if a received block
    links ancestors that were received out-of-order, general and robust ability to reorganize,
    determining whether or not to broadcast a block, and in some cases, timestamp manipulation.
@@ -17,14 +17,14 @@
 
 import * as scoringFunctions from './scoring_functions.js';
 
-/* Re-use the same log from sim_core, populated directly via function export (to sim_core) */
+/* Re-use the same log from the sim_engine, populated directly via function export (to sim_engine) */
 let info  = () => {};
 let probe = () => {};
 export function setLog(logFunc) { info = logFunc; }
 export function setLog2(logFunc2) { probe = logFunc2; }
 
 export function invokePoolAgent(activeEvent, p, blocks) {
-/* Entry point from the sim_core, flow coordinator for pool behavior, returns the API contract */
+/* Entry point from the sim_engine, flow coordinator for pool behavior, returns the API contract */
    info(() => `invokePoolAgent:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
 
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
@@ -227,7 +227,7 @@ function scoreDanglingChaintips(activeEvent, p, blocks, scores, newTip) {
 /*
    Sometimes an out-of-order block is the missing link in a chain of descendant blocks.
    Now that the link has been received, score the descendants who were waiting for completion.
-   If scored successfully, these must be added to `scores` and returned to the sim_core.
+   If scored successfully, these must be added to `scores` and returned to the sim_engine.
 */
    info(() => `scoreDanglingTips: ${activeEvent.simClock.toFixed(7)} ${p.id}`);
 
