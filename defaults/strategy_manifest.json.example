@@ -11,7 +11,7 @@
     }
   },
   {
-    "id": "HS1",
+    "id": "HS0",
     "name": "Honest_Scoring",
     "description": "Apply scoring adjustments to the difficulty of each block",
     "module": "./plugins/unified_pool_agent.js",

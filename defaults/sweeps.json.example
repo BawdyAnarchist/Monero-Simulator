@@ -1,19 +1,19 @@
 {
   "difficulty": {
-    "DIFFICULTY_TARGET_V2": [ 60, 120, 180 ]
+    "DIFFICULTY_TARGET_V2": [ 60, 120 ]
   },
   "internet": {
-    "PING": [ 70, 200, 500, 1000 ]
+    "PING": [ 70, 200, 500 ]
   },
   "pools": {
-    "P0": { "strategy": [ "SS0" , "SS1" ], "HPP": [0.3, 0.4, 0.5] }, 
-    "HONEST": { "strategy": [ "HS0", "HS1" ] }
+    "P0": { "strategy": [ "SS0" ], "HPP": [ 0.3, 0.4, 0.45 ] }, 
+    "HONEST": { "strategy": [ "HB0" ] }
   },
   "strategies": {
     "SS0" : {
       "config": {
         "policy": {
-          "kThresh": [ -1, 0, 1],
+          "kThresh": [ -1, 0, 1 ],
           "retortPolicy": [ 0, 1 ]
         }
       }
