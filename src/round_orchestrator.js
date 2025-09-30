@@ -254,9 +254,9 @@ function prepareDataExport(results) {
    }
 
    /* Format the log buffers */
-   LOG.info  = LOG.info.join('\n');
-   LOG.probe = LOG.probe.join('\n');
-   LOG.stats = LOG.stats.join('\n');
+   LOG.info  = LOG.info.length  ? LOG.info.join('\n')  + '\n' : '';
+   LOG.probe = LOG.probe.length ? LOG.probe.join('\n') + '\n' : '';
+   LOG.stats = LOG.stats.length ? LOG.stats.join('\n') + '\n' : '';
 }
 
 function exitOrchestrationWorker(exit_code, results) {
