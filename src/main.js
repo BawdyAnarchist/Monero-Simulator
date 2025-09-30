@@ -8,13 +8,16 @@
 
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
 import { Worker } from 'node:worker_threads';
+import { availableParallelism } from 'os';
 import { gzipSync } from 'node:zlib';
 import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
 
 import { CONFIG } from './config_init.js';
 
+const STATE = new Object();              // Shared state is common to most functions
 const rng = randomLcg(CONFIG.env.seed);  // Required to set per-pool ntpDrift
 const streams = new Object();            // Write streams for recording results per round
 let   headerWritten = false
@@ -31,7 +34,7 @@ function timeNow() {
 // MANAGE DATA STORAGE
 // -----------------------------------------------------------------------------
 
-function initializeResultsStorage(state) {
+function initializeResultsStorage() {
    /* Create and write the consolidated configuration snapshot for this run */
    const snapshotData = { env: CONFIG.env, sim: CONFIG.sim, parsed: CONFIG.parsed };
    fs.writeFileSync(CONFIG.run.snapshot, JSON.stringify(snapshotData, null, 2));
@@ -44,9 +47,9 @@ function initializeResultsStorage(state) {
       }
    }
    /* Write historical blocks (history not included in results_blocks -> avoid duplicated data) */
-   const blockFields = Object.keys(state.blocks[state.startTip]);
+   const blockFields = Object.keys(STATE.blocks[STATE.startTip]);
    let csv = blockFields.join(',') + '\n';
-   for (const b of Object.values(state.blocks))
+   for (const b of Object.values(STATE.blocks))
       csv += blockFields.map(k => b[k]).join(',') + '\n';
    fs.writeFileSync(CONFIG.run.history, Buffer.from(csv));
 }
@@ -91,10 +94,10 @@ async function gracefulShutdown() {
 
 
 // -----------------------------------------------------------------------------
-// SIM STATE INITIALIZATION
+// SHARED STATE INITIALIZATION
 // -----------------------------------------------------------------------------
 
-function importHistory(state) {
+function importHistory() {
 /*
    Populate `blocks` with 735 blocks of history for difficulty adjustment calculation. A
    stateful rolling `diffWindows` avoids a walkback loop via prevId on every new block. 
@@ -149,24 +152,24 @@ function importHistory(state) {
    let diffWindows      = Object.create(null);
    diffWindows[blockId] = diffWindow;  
 
-   state.blocks      = blocks;
-   state.hScore      = hScore;         // For sim_engine startup, score of the historical chaintip
-   state.startTip    = blockId;        // blockId is the chaintip of the historical blocks
-   state.diffWindows = diffWindows;
+   STATE.blocks      = blocks;
+   STATE.hScore      = hScore;         // For sim_engine startup, score of the historical chaintip
+   STATE.startTip    = blockId;        // blockId is the chaintip of the historical blocks
+   STATE.diffWindows = diffWindows;
 }
 
-function initializePools(state) {
+function initializePools() {
 /* 
    Pools need initialized with basic parameters. Historic scores are identical between pools
    (we lack that data anyways), but we do simulate ntpDrift for the most recent historical block.
 */
    const normalNtp = randomNormal.source(rng)(0, CONFIG.sim.ntpStdev);  // Build once, use in loop
-   const startTip  = state.startTip;
-   for (const poolKey in state.pools) {
-      const p        = state.pools[poolKey];
+   const startTip  = STATE.startTip;
+   for (const poolKey in STATE.pools) {
+      const p        = STATE.pools[poolKey];
       const ntpDrift = normalNtp();
-      const score    = { ...state.hScore,
-                            localTime: Math.floor(state.hScore.localTime + ntpDrift) };
+      const score    = { ...STATE.hScore,
+                            localTime: Math.floor(STATE.hScore.localTime + ntpDrift) };
       p.id           = poolKey;                     // Enrich with id=Key for simplicity later
       p.ntpDrift     = ntpDrift;                    // Persistent ntp drift
       p.hashrate     = p.HPP * CONFIG.sim.hashrate; //hashrate based on hashpower percentage
@@ -183,10 +186,149 @@ function initializePools(state) {
 
 
 // -----------------------------------------------------------------------------
-// FLOW CONTROL AND MANAGEMENT
+// STATE DERIVATIONS and RESOURCE CALCULATION
 // -----------------------------------------------------------------------------
 
-function callOrchestrationWorker(idx, CONFIG, state) {
+function derivePermutations() {
+   const sweeps = CONFIG.parsed.sweeps;
+   if (!sweeps) return null;
+
+   const dimensions = [];
+   const findArrays = (obj, path = []) => {
+      for (const key in obj) {
+         const newPath = path.concat(key);
+         if (Array.isArray(obj[key])) {
+            dimensions.push({ path: newPath, values: obj[key] });
+         } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+            findArrays(obj[key], newPath);
+         }
+      }
+   };
+   findArrays(sweeps);
+
+   if (dimensions.length === 0) return [];
+
+   return dimensions.reduce((a, b) =>
+      a.flatMap(x => b.values.map(y => [...x, { path: b.path, value: y }])),
+   [[]]);
+}
+
+function calculateResourceUsage(perms) {
+   /* Modifiers */
+   const rounds  = perms ? perms.length : CONFIG.env.simRounds;
+   const speed   = [ 'simple', 'metrics' ].includes(CONFIG.env.dataMode) ? 250 : 200
+   const penalty = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 1.5 : 1
+   const workers = CONFIG.env.workers / (1 + CONFIG.env.workers / 9 );  // Non-linear benefit. Magic
+   /* Usage */
+   const seconds = Math.ceil((CONFIG.sim.depth * rounds * penalty) / (speed * workers));
+   const megas   = Math.ceil((CONFIG.sim.depth * penalty) / 4);  // Top quartile: ~1MB / 4 sim-hours
+   /* With units */
+   const heapEst = `${megas} MB`;
+   const timeEst =
+      seconds > 7200 ? `${(seconds / 3600).toFixed(1)} hrs` :
+      seconds > 120  ? `${(seconds / 60).toFixed(1)} mins` : `${seconds} secs`;
+
+   /* Flag and provide data when the user is submaxing their CPU threads */
+   const flagThreads = CONFIG.env.workers < rounds && CONFIG.env.workers < 4 * availableParallelism();
+   return { rounds, megas, timeEst, heapEst, flagThreads };
+}
+
+function assembleSweepState(perm, idx) {
+   const config = structuredClone(CONFIG);
+   const state = structuredClone(STATE);
+
+   const setValue = (obj, path, val) => {
+      path.slice(0, -1).forEach(key => obj = obj[key]);
+      obj[path[path.length - 1]] = val;
+   };
+
+   let attackerHppChanged = false;
+   for (const { path, value } of perm) {
+      const key = path[0];
+      if (key === 'difficulty' || key === 'internet') {
+         setValue(config.parsed[key], path.slice(1), value);
+      } else if (key === 'strategies') {
+         const strategyId = path[1];
+         const manifestEntry = config.parsed.manifest.find(s => s.id === strategyId);
+         if (manifestEntry) setValue(manifestEntry, path.slice(2), value);
+      } else if (key === 'pools') {
+         const poolKey = path[1];
+         const property = path[2];
+         if (poolKey === 'HONEST') {
+            Object.values(state.pools).filter(p => p.id !== 'P0').forEach(p => p.strategy = value);
+         } else {
+            state.pools[poolKey][property] = value;
+            if (property === 'HPP') attackerHppChanged = true;
+         }
+      }
+   }
+
+   if (attackerHppChanged) {
+      const attackerId = 'P0';
+      const attackerNewHpp = state.pools[attackerId].HPP;
+      const honestOldHppSum = 1 - STATE.pools[attackerId].HPP;
+      const honestNewHppSum = 1 - attackerNewHpp;
+      if (honestOldHppSum > 1e-9) {
+         Object.values(state.pools).filter(p => p.id !== attackerId).forEach(p => {
+            p.HPP = (STATE.pools[p.id].HPP / honestOldHppSum) * honestNewHppSum;
+         });
+      }
+   }
+
+   config.sim = {
+      ...CONFIG.sim,
+      diffTarget: Number(config.parsed.difficulty.DIFFICULTY_TARGET_V2),
+      hashrate:   Number(config.parsed.difficulty.NETWORK_HASHRATE),
+      ping:       Number(config.parsed.internet.PING),
+      cv:         Number(config.parsed.internet.CV),
+      mbps:       Number(config.parsed.internet.MBPS),
+      ntpStdev:   Number(config.parsed.internet.NTP_STDEV)
+   };
+
+   for (const p of Object.values(state.pools)) {
+      p.hashrate = p.HPP * config.sim.hashrate;
+      p.config = config.parsed.manifest.find(s => s.id === p.strategy)?.config;
+   }
+
+   config.run.sweepPermutation = perm.reduce((acc, { path, value }) => {
+      acc[path.join('.')] = value; return acc; }, {});
+   config.run.sweepId = idx;
+
+   return { config, state };
+}
+
+
+// -----------------------------------------------------------------------------
+// FLOW CONTROL
+// -----------------------------------------------------------------------------
+
+function getUserPermission(perms) {
+   if (!process.stdout.isTTY) return Promise.resolve();
+   const { rounds, megas, timeEst, heapEst, flagThreads } = calculateResourceUsage(perms);
+
+   if (flagThreads) console.log(`\x1b[36m[TIP]: For max speed, assign as many WORKERS as you have ` +
+      `rounds, up to 4-8x your system thread count of: ${availableParallelism()}\x1b[0m\n`);
+
+   console.log(`## ESTIMATED RESOURCE USAGE ##\n  ` +
+      `Total Rounds:    ${rounds}\n  ` +
+      `RAM per Worker:  ${heapEst}\n  ` +
+      `Completion Time: ${timeEst}`);
+
+   if (CONFIG.env.workerRam < megas * 1.3) console.log(` \x1b[33m[Warning]\x1b[0m: ` +
+      `WORKER_RAM might be too low. Only ${CONFIG.env.workerRam} MB is allocated in .env`);
+
+   /* Readline prompt and user response switch */
+   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+   return new Promise((resolve) => {
+      rl.question('CONTINUE? (y/N): ', answer => {
+         rl.close(`\n`);
+         if (answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') resolve();
+         else process.exit(0);
+      });
+   });
+}
+
+function callOrchestrationWorker(idx, config, state) {
 /*
    Spawn a worker that runs one, memory isolated simulation round.
    Returns a promise that resolves with a data object (or rejection/error).
@@ -194,7 +336,7 @@ function callOrchestrationWorker(idx, CONFIG, state) {
    return new Promise((resolve, reject) => {
       const worker = new Worker(
          new URL('./round_orchestrator.js', import.meta.url), {
-            workerData: { idx, CONFIG, state },
+            workerData: { idx, config, state },
             resourceLimits: { maxOldGenerationSizeMb: CONFIG.env.workerRam },
          }
       );
@@ -222,21 +364,36 @@ async function main() {
    Central coordinator for pluggable/configurable history, pools, and strategies.
    Sets configs, then manages multi-thread simulation execution and data delivery.
 */
-   /* Conduct checks and prepare state for hand off the round_orchestrator */
-   const state = new Object();
-   state.pools = JSON.parse(JSON.stringify(CONFIG.parsed.pools));
-   importHistory(state);               // Add critical historical data to state
-   initializePools(state);             // Add pools: ntpDrift, hashrate, and hScore to state
-   initializeResultsStorage(state);    // Set up streams to receive worker returned data
+   /* Conduct checks and prepare the shared STATE */
+   STATE.pools = JSON.parse(JSON.stringify(CONFIG.parsed.pools));
+   importHistory();                     // Add critical historical data to STATE
+   initializePools();                   // Add pools: ntpDrift, hashrate, and hScore to STATE
+   const perms = derivePermutations();  // Returns an array. `null` if sweeps arent enabled
+   Object.freeze(STATE);                // Immutable shared state
 
-   /* Prepare the worker callback function */
+   await getUserPermission(perms);      // User permission for > 60 sec estimated runtime
+   initializeResultsStorage();          // Set up streams to receive worker returned data
+
+   /* Prepare the worker callback functions */
    const limit = pLimit(CONFIG.env.workers);
-   const jobs  = Array.from({ length: CONFIG.env.simRounds }, (_, idx) => {
-      return { idx , promise: limit( () => callOrchestrationWorker(idx, CONFIG, state)) };
-   });
+   let jobs;
+   if (perms) {
+      jobs = perms.map((perm, idx) => ({
+         idx,
+         promise: limit(() => {
+            const { config, state } = assembleSweepState(perm, idx);
+            return callOrchestrationWorker(idx, config, state);
+         })
+      }));
+   } else {
+      jobs = Array.from({ length: CONFIG.env.simRounds }, (_, idx) => ({
+         idx,
+         promise: limit(() => callOrchestrationWorker(idx, CONFIG, STATE))
+      }));
+   }
 
    /* Await each job’s completion (order of resolution is not important) */
-   console.log(`[${timeNow()}] Environment checks good, starting sim rounds...\n`);
+   console.log(`\n[${timeNow()}] Environment checks good, starting sim rounds...`);
    for (const { idx, promise } of jobs) {
       try {
          const { results: results, log: log, } = await promise;  // Destructure results

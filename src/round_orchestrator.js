@@ -11,8 +11,8 @@ import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
 import { runSimulationEngine } from './sim_engine.js';
 
 /* Data objects passed by the worker manager in main */
-const { idx, CONFIG, state } = workerData;
-const { env, sim, parsed, log } = CONFIG;
+const { idx, config, state } = workerData;
+const { env, sim, parsed, log } = config;
 const { pools, blocks, startTip } = state;
 
 /* Custom LOG. Strings are parsed only if the log is activated (speed boost for non-log runs) */
@@ -95,7 +95,7 @@ async function makeStrategiesFunctions() {
  */
    let strategies = Object.create(null);
    for (const strategy of parsed.manifest) {
-      const module = await import(path.resolve(CONFIG.root, 'src', strategy.module));
+      const module = await import(path.resolve(config.root, 'src', strategy.module));
       if (typeof module.setLog  === 'function') module.setLog(info);      // Inject into pool agent
       if (typeof module.setLog2 === 'function') module.setLog2(probe); // Inject into pool agent
       const entryPoint = strategy.entryPoint;
@@ -180,7 +180,7 @@ function calculateMetrics(results) {
      summary[key] = { mean, stdev };
    });
 
-   if (CONFIG.data.metrics) results.metrics = metrics;   // Only save per-pool metrics if flagged
+   if (config.data.metrics) results.metrics = metrics;   // Only save per-pool metrics if flagged
    results.summary = summary;
 }
 
@@ -200,7 +200,7 @@ function prepareDataExport(results) {
    results.headers['summary'] = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
 
    /* Metrics per pool */
-   if (CONFIG.data.metrics) {
+   if (config.data.metrics) {
       const metricFields  = Object.keys(Object.values(results.metrics)[0]);
       const metricsResult = Object.values(pools)
          .filter(p => results.metrics[p.id])
@@ -212,7 +212,7 @@ function prepareDataExport(results) {
    }
 
    /* Pool scores */
-   if (CONFIG.data.scores) {
+   if (config.data.scores) {
       const scoreFields   = Object.keys(pools[Object.keys(pools)[0]].scores[startTip]);
       const scoresResults = Object.values(pools).flatMap(p => {
          const scores = Object.entries(p.scores);
@@ -226,7 +226,7 @@ function prepareDataExport(results) {
    }
 
    /* Blocks */
-   if (CONFIG.data.blocks) {
+   if (config.data.blocks) {
       const blockFields   = Object.keys(blocks[startTip]);
       const blocksResults = Object.values(blocks)
          .filter(b => b.height > blocks[startTip].height)         // Filter out historical blocks

@@ -23,6 +23,11 @@ const CONFIG = {       // Declare the master CONFIG object
    log:    {},
 };
 
+function exitWithError(message) {
+  console.error(`\x1b[35m[CONFIG ERROR]\x1b[0m: ${message}\n`);
+  process.exit(1);
+}
+
 function initializeEnvironment() {
    /* Copy the env and configs from the samples, but don't overwrite any existing user files  */
    const configFiles = [
@@ -54,7 +59,7 @@ function initializeEnvironment() {
    for (const file of configFiles) {
       if (!fs.existsSync(file.live)) {                     // Perform copy
          if (fs.existsSync(file.bak)) fs.copyFileSync(file.bak, file.live);
-         else throw new Error(`FATAL: ${file.live} not found and no example exists at ${file.bak}`);
+         else exitWithError(`FATAL: ${file.live} not found and no example exists at ${file.bak}`);
       }
       const lines = fs.readFileSync(file.live, 'utf8').split('\n');  // Remove comments
       if (lines.length > 1 && lines[0].startsWith('##') && lines[1].startsWith('##')) {
@@ -81,28 +86,28 @@ function populateFilepaths() {
    /* Specify and parse the config json files */
    CONFIG.config = {
       env:        path.join(PROJ_ROOT, '.env'),
-      sweeps:     path.join(PROJ_ROOT, 'config/sweeps.json'),
-      pools:      path.join(PROJ_ROOT, 'config/pools.json'),
-      manifest:   path.join(PROJ_ROOT, 'config/strategy_manifest.json'),
-      internet:   path.join(PROJ_ROOT, 'config/internet.json'),
-      difficulty: path.join(PROJ_ROOT, 'config/difficulty.json'),
       history:    path.join(PROJ_ROOT, 'config/difficulty_bootstrap.csv'),
+      difficulty: path.join(PROJ_ROOT, 'config/difficulty.json'),
       dynamic:    path.join(PROJ_ROOT, 'config/dynamic_blocks.json'),
+      internet:   path.join(PROJ_ROOT, 'config/internet.json'),
+      manifest:   path.join(PROJ_ROOT, 'config/strategy_manifest.json'),
+      pools:      path.join(PROJ_ROOT, 'config/pools.json'),
+      sweeps:     path.join(PROJ_ROOT, 'config/sweeps.json'),
    }
    CONFIG.parsed = {
-      sweeps:     CONFIG.env.simRounds.includes('sweep') &&
-                     JSON.parse(fs.readFileSync(CONFIG.config.sweeps, 'utf8')),
+      difficulty: JSON.parse(fs.readFileSync(CONFIG.config.difficulty, 'utf8')),
+      dynamic:    JSON.parse(fs.readFileSync(CONFIG.config.dynamic, 'utf8')),
+      internet:   JSON.parse(fs.readFileSync(CONFIG.config.internet, 'utf8')),
       manifest:   JSON.parse(fs.readFileSync(CONFIG.config.manifest, 'utf8')),
       pools:      JSON.parse(fs.readFileSync(CONFIG.config.pools, 'utf8'),
-                            (k, v) => (k.startsWith('Comment') ? undefined : v)),
-      difficulty: JSON.parse(fs.readFileSync(CONFIG.config.difficulty, 'utf8')),
-      internet:   JSON.parse(fs.readFileSync(CONFIG.config.internet, 'utf8')),
-      dynamic:    JSON.parse(fs.readFileSync(CONFIG.config.dynamic, 'utf8')),
+                     (k, v) => (k.startsWith('Comment') ? undefined : v)),
+      sweeps:     isNaN(CONFIG.env.simRounds) && CONFIG.env.simRounds.includes('sweep')
+                     && JSON.parse(fs.readFileSync(CONFIG.config.sweeps, 'utf8')),
    }
 
    // Simulation parameters from parsed JSON files
    CONFIG.sim = {
-      simDepth:   Number(process.env.SIM_DEPTH),  // More appropriately belongs as sim parameter
+      depth:      Number(process.env.SIM_DEPTH),  // More appropriately belongs as sim parameter
       diffTarget: Number(CONFIG.parsed.difficulty.DIFFICULTY_TARGET_V2),
       diffWindow: Number(CONFIG.parsed.difficulty.DIFFICULTY_WINDOW),
       diffLag:    Number(CONFIG.parsed.difficulty.DIFFICULTY_LAG),
@@ -148,14 +153,17 @@ async function conductChecks() {
 /* Pre-run validation checks */
 
    if (!fs.existsSync(CONFIG.config.history))
-      throw new Error(`Missing history file: ${CONFIG.config.history}`);
+      exitWithError(`Missing history file: ${CONFIG.config.history}`);
 
    if (!['simple', 'metrics', 'full'].includes(CONFIG.env.dataMode))
-      throw new Error('DATA_MODE must be either: "simple", "metrics", or "full"');
+      exitWithError('DATA_MODE must be either: "simple", "metrics", or "full"');
+
+   if (['full'].includes(CONFIG.env.dataMode) && CONFIG.parsed.sweeps) console.warn(
+      '\x1b[33m[WARNING]\x1b[0m: Sweeps are enabled with DATA_MODE=full. Sweeps can multiply quickly\n');
 
    if (typeof CONFIG.env.simRounds !== 'number'
       && CONFIG.env.simRounds !== 'sweep' && CONFIG.env.simRounds !== 'sweeps')
-         throw new Error('SIM_ROUNDS must either be an integer, or the string: sweep');
+         exitWithError('SIM_ROUNDS must either be an integer, or the string: sweep');
 
    /* CONFIG.log.error always exists, so it has to be excluded from logMode test/check */
    const nonErrorLogs = Object.entries(CONFIG.log).filter(([k]) => k !== 'error').map(([, v]) => v);
@@ -163,45 +171,45 @@ async function conductChecks() {
       for (const log of Object.values(CONFIG.log))
          if (log && fs.existsSync(log)) fs.unlinkSync(log);
       if (CONFIG.env.simRounds > 1)
-         throw new Error('Log mode enabled, dont run multiple rounds in .env');
-      if (CONFIG.env.simDepth > 1000)
-         console.warn('WARNING: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size.');
+         exitWithError('Log mode is intended for single-round runs, not multiple runs.');
+      if (CONFIG.sim.depth > 1000) console.warn(
+         '\x1b[33m[WARNING]\x1b[0m: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size\n');
    }
 
    for (const key in CONFIG.env) {
       if (CONFIG.env[key] === undefined ||
          (typeof CONFIG.env[key] === 'number' && isNaN(CONFIG.env[key])))
-            throw new Error(`Invalid or missing environment variable: ${key.toUpperCase()}`);
+            exitWithError(`Invalid or missing environment variable: ${key.toUpperCase()}`);
    }
 
    for (const key in CONFIG.sim) {
       if (CONFIG.sim[key] === undefined || (typeof CONFIG.sim[key] !== 'number'))
-         throw new Error(`Invalid or missing configuration variable: ${key.toUpperCase()}`);
+         exitWithError(`Invalid or missing configuration variable: ${key.toUpperCase()}`);
    }
 
    let totalHPP = 0;
    for (const [poolId, poolConfig] of Object.entries(CONFIG.parsed.pools)) {
       if (!poolConfig.strategy || !CONFIG.parsed.manifest.find(s => s.id === poolConfig.strategy))
-         throw new Error(`Pool '${poolId}' has invalid strategy: '${poolConfig.strategy}'`);
+         exitWithError(`Pool '${poolId}' has invalid strategy: '${poolConfig.strategy}'`);
       totalHPP += poolConfig.HPP;
    }
    if (Math.abs(totalHPP - 1.0) > 1e-3)
-      throw new Error(`Total pool HPP must sum to 1.0. Current sum is: ${totalHPP}`);
+      exitWithError(`Total pool HPP must sum to 1.0. Current sum is: ${totalHPP}`);
 
    /* Check that all required strategy modules exist and are functions */
    const strategyChecks = CONFIG.parsed.manifest.map(async (strategy) => {
       const modulePath = path.resolve(__dirname, strategy.module);
       if (!fs.existsSync(modulePath))
-         throw new Error(`Module not found for '${strategy.id}': ${modulePath}`);
+         exitWithError(`Module not found for '${strategy.id}': ${modulePath}`);
       const module = await import(modulePath);
       if (typeof module[strategy.entryPoint] !== 'function')
-         throw new Error(`EntryPoint '${strategy.entryPoint}' not a function in ${strategy.module}`);
+         exitWithError(`EntryPoint '${strategy.entryPoint}' not a function in ${strategy.module}`);
 
       /* Add a few more checks for the reference implementation (unified agent) */
       if (strategy.module === './plugins/unified_pool_agent.js') {
-         if (strategy.config?.policy?.honest === undefined) throw new Error(
+         if (strategy.config?.policy?.honest === undefined) exitWithError(
             `Strategy Manifest for ${strategy.id} is missing config object: config.policy.honest`);
-         if (strategy.config?.scoringFunctions === undefined) throw new Error(
+         if (strategy.config?.scoringFunctions === undefined) exitWithError(
             `Strategy Manifest for ${strategy.id} is missing config object: config.scoringFunctions`);
       }
    });
