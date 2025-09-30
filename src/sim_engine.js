@@ -299,7 +299,7 @@ export function runSimulationEngine(engineContext) {
       simulateBlockTime(p, blocks[startTip].simClock);
 
    /* Event queue engine. Continuous event creation and execution until depth is reached */
-   const simDepth = blocks[startTip].simClock + (sim.simDepth * 3600);
+   const simDepth = blocks[startTip].simClock + (sim.depth * 3600);
    let activeEvent;
    while (activeEvent = eventQueue.pop()) {   // TinyQueue pop() removes obj with lowest comparator
       if (activeEvent.simClock > simDepth) break;
