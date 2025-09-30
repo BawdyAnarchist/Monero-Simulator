@@ -186,9 +186,7 @@ async function conductChecks() {
    const nonErrorLogs = Object.entries(CONFIG.log).filter(([k]) => k !== 'error').map(([, v]) => v);
    if (nonErrorLogs.some(Boolean)) {
       for (const log of Object.values(CONFIG.log))
-         if (log && fs.existsSync(log)) fs.unlinkSync(log);
-      if (CONFIG.env.simRounds > 1)
-         exitWithError('Log mode is intended for single-round runs, not multiple runs.');
+         if (log && fs.existsSync(log)) fs.unlinkSync(log);  // For new logs, delete old ones first
       if (CONFIG.sim.depth > 1000) console.warn(
          '\x1b[33m[WARNING]\x1b[0m: Log mode enabled. Recommend SIM_DEPTH < 1000 to limit file size\n');
    }
