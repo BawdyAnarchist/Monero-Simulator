@@ -279,6 +279,7 @@ function exitOrchestrationWorker(exit_code, results) {
 async function orchestrateRound() {
 /* Main orchestration flow and entry point for the worker */ 
    console.log(`[${timeNow()}] Running round: ${idx.toString().padStart(3, '0')}...`);
+   info(() => JSON.stringify(config.run.sweepPerm, null, 1));   // Summarize permutation for log
 
    /* Setup the stochestic model and plugin modules */
    const simNoise   = makeNoiseFunctions();
