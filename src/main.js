@@ -74,7 +74,7 @@ async function recordResultsToCSV(results, log) {
    await Promise.all(dataWrites);
 
    for (const key in log) if (CONFIG.log[key])  
-      fs.writeFileSync(CONFIG.log[key], `${key.toUpperCase()} GENERATED: ${dateNow()}\n${log[key]}`);
+      fs.appendFileSync(CONFIG.log[key], `${key.toUpperCase()} GENERATED: ${dateNow()}\n${log[key]}`);
 }
 
 async function writeBufferToStream(stream, buf) {
@@ -226,7 +226,7 @@ function calculateResourceUsage(perms) {
    const workers = Math.min(CONFIG.env.workers, rounds);
    const effWork = (workers / (1 + workers/9 ));   // Non-linear benefit of adding workers
    /* Usage */
-   const seconds = Math.ceil((CONFIG.sim.depth * rounds * logPenT) / (speed * effWork));
+   const seconds = Math.ceil((CONFIG.sim.depth * rounds * logPenT) / (speed * effWork)) + 2;
    const heapAvg = Math.ceil((CONFIG.sim.depth * logPenR) / 6);   // Avg: ~1MB per 6 sim-hours
    const heapMax = Math.ceil(heapAvg * 1.45 + 100);
    const ramTot  = workers * heapAvg / 1024;
