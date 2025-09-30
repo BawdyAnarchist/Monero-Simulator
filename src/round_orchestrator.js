@@ -147,38 +147,38 @@ function calculateMetrics(results) {
       let reorgList    = [];
       let reorgDepth   = 0;
       let selfishCount = 0;
-      let totalCount   = 0;
+      let canonical    = 0;
 
       /* Reorgs detection. Reorgs arent merely the orphan count, but an actual head switch */
       const scores = Object.entries(p.scores);                // Copy the pool's scores object
       for (const [id, score] of scores) {
          if (score.isHeadPath) {
+            canonical++;                   // Count of canonical blocks (not all blocks produced
             if (selfishIds.has(blocks[id].poolId)) selfishCount++;
             if (reorgDepth > 0) {           // Reorg depth > 0 only when prevTip was not headPath
                reorgList.push(reorgDepth);  // Track all unique, completed reorg lengths
                reorgDepth = 0;
             }
          } else {
-            /* Non-selfish blocks not in the head path, and not mere latency artifacts (orphans) */
+            /* Non-selfish blocks not in head path, and not latency artifacts (genuine orphans) */
             if (selfishIds.has(blocks[id].poolId)) continue;
             orphanCount++;
             if (blocks[id].height !== blocks[prevTip].height) reorgDepth++;
          }
-         totalCount++;
          prevTip = id;
       }
 
       /* Nothing to report. Guard against zeros / divide by zero */
-      if (totalCount === 0 || reorgList.length === 0) {
+      if (canonical === 0 || reorgList.length === 0) {
          metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
          continue;
       }
       /* Calculate metrics for the pool and add to the metrics object */
       reorgList.sort((a, b) => a - b);
-      const orphanRate   = orphanCount / (totalCount - 1);       // (-1) because HH0 is the startTip
+      const orphanRate   = orphanCount / (canonical - 1);       // (-1) because HH0 is the startTip
       const reorgMax     = reorgList.at(-1);
       const reorgP99     = reorgList[Math.ceil(reorgList.length * 0.99) - 1];
-      const selfProfit   = (selfishCount / (totalCount - 1)) - selfishHPP;
+      const selfProfit   = (selfishCount / (canonical - 1)) - selfishHPP;
       metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit, }
    }
 
