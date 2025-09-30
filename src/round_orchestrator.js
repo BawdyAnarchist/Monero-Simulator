@@ -50,22 +50,34 @@ function makeNoiseFunctions() {
    const spikeProb = (base_pct) => base_pct-0.01 + (1-base_pct) * (ping/(ping + 5)); // Magic (s-curve)
    const spikeMult = () => 1 + Math.pow(1 + ping, 0.7);                              // Magic
 
-   /* Seed generators once. Declare samplers (prob distributions) to call later (most efficient) */
-   const rng         = randomLcg(env.seed + idx);
-   const logNormal   = randomLogNormal.source(rng);
-   const exponential = randomExponential.source(rng);
-   const baseP2P     = logNormal(pingMu,  sigma);
-   const baseP2H     = logNormal(pingMu2, sigma2);
-   const baseTxTime  = logNormal(txMu, sigma);
+   /* Seed generators once. Declare samplers (prob distributions) to call later (most efficient).
+      Uniquely seeding each stoch process sampler, reduces variance between permutations.
+      Future improvement - each pool gets its own rng/sampler, especially for blockTimes.      */
+   const seed    = parsed.sweeps ? env.seed : env.seed + idx;
+   const rngP2P  = randomLcg(seed + 10001);
+   const rngP2H  = randomLcg(seed + 20002);
+   const rngTx   = randomLcg(seed + 30003);
+   const rngExp  = randomLcg(seed + 40004);
+   const rngOwdP = randomLcg(seed + 50005);
+   const rngOwdH = randomLcg(seed + 60006);
+
+   const logNormalP2P = randomLogNormal.source(rngP2P);
+   const logNormalP2H = randomLogNormal.source(rngP2H);
+   const logNormalTx  = randomLogNormal.source(rngTx);
+   const expFactory   = randomExponential.source(rngExp);
+
+   const baseP2P    = logNormalP2P(pingMu,  sigma);
+   const baseP2H    = logNormalP2H(pingMu2, sigma2);
+   const baseTxTime = logNormalTx(txMu, sigma);
 
    /* Call the samplers, with the stats() log integrated for correctness auditing */
    const owdP2P = () => {                        // 1% prob of 2x spike at 50ms P2P
-      const value = rng() < spikeProb(0.01) ? baseP2P() * spikeMult() : baseP2P();
+      const value = rngOwdP() < spikeProb(0.01) ? baseP2P() * spikeMult() : baseP2P();
       stats(() => `owdP2P: ${value}`);
       return value;
    };
    const owdP2H = () => {                        // 4% prob of 2x spike at 50ms P2P
-      const value = rng() < spikeProb(0.04) ? baseP2H() * spikeMult() : baseP2H();
+      const value = rngOwdH() < spikeProb(0.04) ? baseP2H() * spikeMult() : baseP2H();
       stats(() => `owdP2H: ${value}`);
       return value;
    };
@@ -75,7 +87,7 @@ function makeNoiseFunctions() {
       return value;
    };
    const blockTime = (lambda) => {
-      const value = exponential(lambda)();
+      const value = expFactory(lambda)();
       stats(() => `BlockTime_λ: ${value} ${lambda}`);
       return value;
    };
