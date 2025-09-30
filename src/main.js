@@ -10,7 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 import { Worker } from 'node:worker_threads';
-import { availableParallelism } from 'os';
+import { freemem, availableParallelism } from 'os';
 import { gzipSync } from 'node:zlib';
 import pLimit from 'p-limit';
 import {randomLcg, randomNormal } from 'd3-random';
@@ -214,23 +214,32 @@ function derivePermutations() {
 }
 
 function calculateResourceUsage(perms) {
+/*
+   There's alot of magic here, tuned to various loads/regimes on my personal machine.
+   Heap/RAM should be close, but timeEst is going to vary significantly. 
+*/
    /* Modifiers */
    const rounds  = perms ? perms.length : CONFIG.env.simRounds;
    const speed   = [ 'simple', 'metrics' ].includes(CONFIG.env.dataMode) ? 250 : 200
-   const penalty = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 1.5 : 1
-   const workers = CONFIG.env.workers / (1 + CONFIG.env.workers / 9 );  // Non-linear benefit. Magic
+   const logPenT = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 2.5 : 1
+   const logPenR = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 7.4 : 1
+   const workers = Math.min(CONFIG.env.workers, rounds);
+   const effWork = (workers / (1 + workers/9 ));   // Non-linear benefit of adding workers
    /* Usage */
-   const seconds = Math.ceil((CONFIG.sim.depth * rounds * penalty) / (speed * workers));
-   const megas   = Math.ceil((CONFIG.sim.depth * penalty) / 4);  // Top quartile: ~1MB / 4 sim-hours
+   const seconds = Math.ceil((CONFIG.sim.depth * rounds * logPenT) / (speed * effWork));
+   const heapAvg = Math.ceil((CONFIG.sim.depth * logPenR) / 6);   // Avg: ~1MB per 6 sim-hours
+   const heapMax = Math.ceil(heapAvg * 1.45 + 100);
+   const ramTot  = workers * heapAvg / 1024;
    /* With units */
-   const heapEst = `${megas} MB`;
+   const heapEst = `${heapAvg}/${heapMax} MB (avg/max)`;  // Spike heap
+   const ramEst  = `${ramTot.toFixed(1)} GB`;
    const timeEst =
       seconds > 7200 ? `${(seconds / 3600).toFixed(1)} hrs` :
       seconds > 120  ? `${(seconds / 60).toFixed(1)} mins` : `${seconds} secs`;
 
    /* Flag and provide data when the user is submaxing their CPU threads */
    const flagThreads = CONFIG.env.workers < rounds && CONFIG.env.workers < 4 * availableParallelism();
-   return { rounds, megas, timeEst, heapEst, flagThreads };
+   return { rounds, heapAvg, heapMax, ramTot, timeEst, heapEst, ramEst, flagThreads };
 }
 
 function assembleSweepState(perm, idx) {
@@ -245,7 +254,7 @@ function assembleSweepState(perm, idx) {
    let attackerHppChanged = false;
    for (const { path, value } of perm) {
       const key = path[0];
-      if (key === 'difficulty' || key === 'internet') {
+      if (key === 'difficulty' || key === 'internet' || key === 'dynamic') {
          setValue(config.parsed[key], path.slice(1), value);
       } else if (key === 'strategies') {
          const strategyId = path[1];
@@ -290,9 +299,78 @@ function assembleSweepState(perm, idx) {
       p.config = config.parsed.manifest.find(s => s.id === p.strategy)?.config;
    }
 
-   config.run.sweepPermutation = perm.reduce((acc, { path, value }) => {
-      acc[path.join('.')] = value; return acc; }, {});
-   config.run.sweepId = idx;
+   /* Build sweep labels using CONFIG.run.labelRule:
+      - Nearest-parent wins; if no match, fallback depth = 0 (use last).
+      - Depth = -1: prefer parent's 'id' (if present), else use parent name; then append last.
+      - Join parts with underscore. */
+   const resolveDepth = (path) => {
+      let node = config.run && config.run.labelRule ? config.run.labelRule : null;
+      let depth = undefined;
+      for (let i = 0; i < path.length; i++) {
+         if (node && typeof node === 'object' && Object.prototype.hasOwnProperty.call(node, path[i])) {
+            const next = node[path[i]];
+            if (typeof next === 'number') { depth = next; break; }
+            node = next;
+         } else break;
+      }
+      if (typeof node === 'number') depth = node;
+      if (depth === undefined) depth = 0;
+      return depth;
+   };
+
+   const getParentIdIfExists = (path) => {
+      const parentPath = path.slice(0, -1);
+      if (parentPath.length === 0) return null;
+
+      let obj = null;
+      const root = parentPath[0];
+
+      if (root === 'pools') {
+         const poolKey = parentPath[1];
+         obj = state.pools && state.pools[poolKey] ? state.pools[poolKey] : null;
+      } else if (root === 'strategies') {
+         const strategyId = parentPath[1];
+         obj = config.parsed.manifest.find(s => s.id === strategyId) || null;
+         for (let i = 2; i < parentPath.length && obj; i++) obj = obj[parentPath[i]];
+      } else if (root === 'difficulty' || root === 'internet' || root === 'dynamic') {
+         obj = config.parsed[root];
+         for (let i = 1; i < parentPath.length && obj; i++) obj = obj[parentPath[i]];
+      }
+
+      if (obj && typeof obj === 'object' && obj !== null && Object.prototype.hasOwnProperty.call(obj, 'id')) {
+         const idVal = obj.id;
+         if (idVal !== null && idVal !== undefined && (typeof idVal === 'string' || typeof idVal === 'number'))
+            return String(idVal);
+      }
+      return null;
+   };
+
+   const makeLabel = (path) => {
+      const last = path[path.length - 1];
+      const depth = resolveDepth(path);
+
+      if (depth === -1) {
+         const parentId = getParentIdIfExists(path);
+         const parent = parentId || path[path.length - 2];
+         return `${parent}_${last}`;
+      }
+      if (depth <= 0) return `${last}`;
+
+      const take = Math.min(depth + 1, path.length);
+      const parts = path.slice(path.length - take);
+      return parts.join('_');
+   };
+
+   const sweepPairs = perm.map(({ path, value }) => {
+      const keyFull  = path.join('.');
+      const keyShort = makeLabel(path);
+      return { keyFull, keyShort, value };
+   });
+
+   config.run.sweepPerm   = Object.fromEntries(sweepPairs.map(p => [p.keyFull, p.value]));
+   config.run.sweepHeader = sweepPairs.map(p => p.keyShort);
+   config.run.sweepPairs  = sweepPairs;
+   config.run.sweepId     = idx;
 
    return { config, state };
 }
@@ -304,7 +382,8 @@ function assembleSweepState(perm, idx) {
 
 function getUserPermission(perms) {
    if (!process.stdout.isTTY) return Promise.resolve();
-   const { rounds, megas, timeEst, heapEst, flagThreads } = calculateResourceUsage(perms);
+   const { rounds, heapAvg, heapMax, ramTot, timeEst, heapEst, ramEst, flagThreads }
+      = calculateResourceUsage(perms);
 
    if (flagThreads) console.log(`\x1b[36m[TIP]: For max speed, assign as many WORKERS as you have ` +
       `rounds, up to 4-8x your system thread count of: ${availableParallelism()}\x1b[0m\n`);
@@ -312,10 +391,14 @@ function getUserPermission(perms) {
    console.log(`## ESTIMATED RESOURCE USAGE ##\n  ` +
       `Total Rounds:    ${rounds}\n  ` +
       `RAM per Worker:  ${heapEst}\n  ` +
-      `Completion Time: ${timeEst}`);
+      `RAM Total:       ${ramEst}\n  ` +
+      `COMPLETION TIME: \x1b[36m${timeEst}\x1b[0m`);
 
-   if (CONFIG.env.workerRam < megas * 1.3) console.log(` \x1b[33m[Warning]\x1b[0m: ` +
-      `WORKER_RAM might be too low. Only ${CONFIG.env.workerRam} MB is allocated in .env`);
+   if (freemem() / (1024**3) < ramTot * 1.1) console.log(`\x1b[33m[Warning]: DEPTH*WORKERS might ` +
+      `be to high for your total free system RAM: ${(freemem()/(1024**3)).toFixed(2)} GB\x1b[0m`);
+
+   if (CONFIG.env.workerRam < heapMax * 1.1) console.log(`\x1b[33m[Warning]: WORKER_RAM ` +
+      `might be too low. Only ${CONFIG.env.workerRam} MB is allocated in .env\x1b[0m`);
 
    /* Readline prompt and user response switch */
    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -425,4 +508,7 @@ main().catch(err => {
    const errorMsg = `[ ${dateNow()} ] Critical main() error: ${err.stack || err}\n`;
    fs.appendFileSync(CONFIG.log.error, errorMsg);
    process.exit(1);
+
+
+
 });

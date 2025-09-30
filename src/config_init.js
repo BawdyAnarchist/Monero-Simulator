@@ -21,6 +21,7 @@ const CONFIG = {       // Declare the master CONFIG object
    run:    {},
    data:   {},
    log:    {},
+   labels: {},
 };
 
 function exitWithError(message) {
@@ -135,9 +136,25 @@ function populateFilepaths() {
    const runId    = CONFIG.runId;
    const mode     = CONFIG.env.dataMode;
 
-   CONFIG.run = {   // Static run details saved to the data directory (no stream required)  
-      history:  path.join(DATA_DIR, `${runId}_historical_blocks.csv`),
-      snapshot: path.join(DATA_DIR, `${runId}_config_snapshot.json`),
+   CONFIG.run = {  // Additional run details. No sweeps -> null (dont append permutation headers)
+      history:     path.join(DATA_DIR, `${runId}_historical_blocks.csv`),
+      snapshot:    path.join(DATA_DIR, `${runId}_config_snapshot.json`),
+      sweepId:     null,
+      sweepHeader: [],
+      sweepPairs:  [],
+      sweepPerm:   {},
+      labelRule: {
+         difficulty:  0,
+         dynamic:     0,
+         internet:    0,
+         pools:       1,
+         strategies: {
+            config: {
+               scoring:  1,
+               policy:   0,
+            }
+         }
+      }
    }
 
    CONFIG.data = {  // Data streams will be created for all populated filepaths
@@ -194,7 +211,7 @@ async function conductChecks() {
       totalHPP += poolConfig.HPP;
    }
    if (Math.abs(totalHPP - 1.0) > 1e-3)
-      exitWithError(`Total pool HPP must sum to 1.0. Current sum is: ${totalHPP}`);
+      exitWithError(`Total pool HPP must sum to 1.0. Current sum is: ${totalHPP.toFixed(4)}`);
 
    /* Check that all required strategy modules exist and are functions */
    const strategyChecks = CONFIG.parsed.manifest.map(async (strategy) => {
@@ -209,8 +226,8 @@ async function conductChecks() {
       if (strategy.module === './plugins/unified_pool_agent.js') {
          if (strategy.config?.policy?.honest === undefined) exitWithError(
             `Strategy Manifest for ${strategy.id} is missing config object: config.policy.honest`);
-         if (strategy.config?.scoringFunctions === undefined) exitWithError(
-            `Strategy Manifest for ${strategy.id} is missing config object: config.scoringFunctions`);
+         if (strategy.config?.scoring === undefined) exitWithError(
+            `Strategy Manifest for ${strategy.id} is missing config object: config.scoring`);
       }
    });
    await Promise.all(strategyChecks);

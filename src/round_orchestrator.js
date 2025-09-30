@@ -201,6 +201,10 @@ function prepareDataExport(results) {
    Chunk/streaming not possible, as reorgs imply state uncertainty until exit. I/O is fast anyways.
 */
    results.headers = {};   // Storage object to write the headers later
+   const sweepCols = (config.run && Array.isArray(config.run.sweepHeader))
+      ? config.run.sweepHeader : [];
+   const sweepVals = (config.run && Array.isArray(config.run.sweepPairs))
+      ? config.run.sweepPairs.map(p => p.value) : [];
 
    /* Summarized metrics */
    const summaryKeys   = Object.keys(results.summary);
@@ -208,8 +212,9 @@ function prepareDataExport(results) {
       results.summary[key].mean.toFixed(4),
       results.summary[key].stdev.toFixed(4),
    ]);
-   results.summary = [idx, ...summaryValues].join(',') + '\n';          // Always saved to data/
-   results.headers['summary'] = ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`])].join(',');
+   results.summary = [idx, ...summaryValues, ...sweepVals].join(',') + '\n';     // Always saved
+   results.headers['summary'] =
+      ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`]), ...sweepCols].join(',');
 
    /* Metrics per pool */
    if (config.data.metrics) {
@@ -217,10 +222,10 @@ function prepareDataExport(results) {
       const metricsResult = Object.values(pools)
          .filter(p => results.metrics[p.id])
          .map(p => [idx, p.id, ...metricFields.map(k =>
-            results.metrics[p.id][k].toFixed(4))].join(','))
+            results.metrics[p.id][k].toFixed(4)), ...sweepVals].join(','))
          .join('\n') + '\n';
       results.metrics = metricsResult;
-      results.headers['metrics'] = ['idx', 'poolId', ...metricFields].join(',');
+      results.headers['metrics'] = ['idx', 'poolId', ...metricFields, ...sweepCols].join(',');
    }
 
    /* Pool scores */
