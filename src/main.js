@@ -243,6 +243,11 @@ function calculateResourceUsage(perms) {
 }
 
 function assembleSweepState(perm, idx) {
+/*
+   Each worker needs the individual permutation wrapped into `config` and `state`. Much of the difficulty
+   of this function is actually the permutation values along with header labels.  Note: This function was
+   entirely LLM vibed. This is a significant break from the rest of the codebase, which was human built.
+*/
    const config = structuredClone(CONFIG);
    const state = structuredClone(STATE);
 
@@ -251,6 +256,7 @@ function assembleSweepState(perm, idx) {
       obj[path[path.length - 1]] = val;
    };
 
+   /* This implements the simplified pools sweep syntax in sweeps.json */
    let attackerHppChanged = false;
    for (const { path, value } of perm) {
       const key = path[0];
@@ -271,7 +277,6 @@ function assembleSweepState(perm, idx) {
          }
       }
    }
-
    if (attackerHppChanged) {
       const attackerId = 'P0';
       const attackerNewHpp = state.pools[attackerId].HPP;
