@@ -171,9 +171,9 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
 
    /* Iterate over the scoring functions listed for the pool's strategy in the manifest, */
    let adjustment = 0;
-   const scoringList = p.config?.scoringFunctions || {};            // No config = base case NC
+   const scoringList = p.config?.scoring || {};            // No config = base case NC
    for (const funcName in scoringList) {
-      const scoringFunction = scoringFunctions[funcName];
+      const scoringFunction = scoring[funcName];
       if (typeof scoringFunction !== 'function')
          throw new Error('Non-existent scoring function: ' + funcName);
       const parameters = scoringList[funcName];
