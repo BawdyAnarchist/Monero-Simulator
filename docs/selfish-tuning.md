@@ -48,32 +48,49 @@ The selfish agent only cares about three things:
 
 ```
 // Behavior is triggered when result > 0 //
-abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh) - kNew);
+abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh * selfLength) - kNew);
 claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
 retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
 ```
 
-The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is incidental/irrelevant, as the decision pivot is based on `result > 0`).
+The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is incidental/irrelevant, as the decision pivot is based on `result > 0`). Some states below are unreachable/nonsensical. They can be ignored.
 
-| kThresh | kNew | zeroPrimeBump | Result<br>Abandon | Result<br>Claim |
-| :--- | :--- | :--- | :--- | :--- |
-| 1 | -1 | 1 | 1 | 3 |
-| 1 | 0 | 1 | 0 | 2 |
-| 1 | 0’ => 1 | 2 | -1 | 2 |
-| 1 | 2 => 1 | 1 | -1 | 1 |
-| 1 | 2 | 1 | -2 | 0 |
-| 1 | 3 | 1 | -3 | -1 |
-| 0 | -1 | 1 | 1 | 2 |
-| 0 | 0 | 1 | 0 | 1 |
-| 0 | 0’ => 1 | 2 | -1 | 1 |
-| 0 | 2 => 1 | 1 | -1 | 0 |
-| 0 | 2 | 1 | -2 | -1 |
-| -1 | -2 | 1 | 1 | 3 |
-| -1 | -1 | 1 | 0 | 2 |
-| -1 | 0 | 1 | -1 | 1 |
-| -1 | 0’ => 1 | 2 | -2 | 1 |
-| -1 | 2 => 1 | 1 | -2 | 0 |
-| -1 | 2 | 1 | -3 | -1 |
+kThresh | selfLength | kNew | zeroPrimeBump | Result Abandon | Result Claim
+:--- | :--- | :--- | :--- | :--- | :---
+1 | 0 | -1 | 1 | 1 | 3
+1 | 0 | 0 | 1 | 0 | 2
+1 | 0 | 0’ => 1 | 2 | -1 | 2
+1 | 0 | 2 => 1 | 1 | -1 | 1
+1 | 0 | 2 | 1 | -2 | 0
+1 | 0 | 3 | 1 | -3 | -1
+0 | 0 | -1 | 1 | 1 | 2
+0 | 0 | 0 | 1 | 0 | 1
+0 | 0 | 0’ => 1 | 2 | -1 | 1
+0 | 0 | 2 => 1 | 1 | -1 | 0
+0 | 0 | 2 | 1 | -2 | -1
+-1 | 0 | -2 | 1 | 2 | 3
+-1 | 0 | -1 | 1 | 1 | 2
+-1 | 0 | 0 | 1 | 0 | 1
+-1 | 0 | 0’ => 1 | 2 | -1 | 1
+-1 | 0 | 2 => 1 | 1 | -1 | 0
+-1 | 0 | 2 | 1 | -2 | -1
+1 | 1 | -1 | 1 | 1 | 3
+1 | 1 | 0 | 1 | 0 | 2
+1 | 1 | 0’ => 1 | 2 | -1 | 2
+1 | 1 | 2 => 1 | 1 | -1 | 1
+1 | 1 | 2 | 1 | -2 | 0
+1 | 1 | 3 | 1 | -3 | -1
+0 | 1 | -1 | 1 | 1 | 2
+0 | 1 | 0 | 1 | 0 | 1
+0 | 1 | 0’ => 1 | 2 | -1 | 1
+0 | 1 | 2 => 1 | 1 | -1 | 0
+0 | 1 | 2 | 1 | -2 | -1
+-1 | 1 | -2 | 1 | 0 | 3
+-1 | 1 | -1 | 1 | 0 | 2
+-1 | 1 | 0 | 1 | 0 | 1
+-1 | 1 | 0’ => 1 | 2 | -1 | 1
+-1 | 1 | 2 => 1 | 1 | -1 | 0
+-1 | 1 | 2 | 1 | -2 | -1
 
 | retortPolicy | addedLength | Result<br>retortCount |
 | :--- | :--- | :--- |
