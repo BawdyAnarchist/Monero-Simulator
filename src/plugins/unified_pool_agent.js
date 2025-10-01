@@ -121,7 +121,7 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${commonAncestor}`);
 
    /* Core of the generalized SM logic. For rationale and details see: docs/SELFISH_TUNING.md */
-   const abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh) - kNew);
+   const abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh * selfLength) - kNew);
    const claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
    const retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
 
