@@ -220,7 +220,7 @@ function calculateResourceUsage(perms) {
 */
    /* Modifiers */
    const rounds  = perms ? perms.length : CONFIG.env.simRounds;
-   const speed   = [ 'simple', 'metrics' ].includes(CONFIG.env.dataMode) ? 230 : 190
+   const speed   = [ 'simple', 'metrics' ].includes(CONFIG.env.dataMode) ? 230 : 180
    const logPenT = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 2.5 : 1
    const logPenR = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 7.4 : 1
    const workers = Math.min(CONFIG.env.workers, rounds);
