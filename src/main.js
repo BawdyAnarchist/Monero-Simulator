@@ -221,14 +221,14 @@ function calculateResourceUsage(perms) {
    /* Modifiers */
    const rounds  = perms ? perms.length : CONFIG.env.simRounds;
    const speed   = [ 'simple', 'metrics' ].includes(CONFIG.env.dataMode) ? 230 : 180
-   const logPenT = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 2.5 : 1
-   const logPenR = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 7.4 : 1
+   const logPenT = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 1.7 : 1
+   const logPenR = [ 'info', 'probe', 'stats' ].includes(CONFIG.env.logMode) ? 7.2 : 1
    const workers = Math.min(CONFIG.env.workers, rounds);
    const effWork = (workers / (1 + workers/9 ));   // Non-linear benefit of adding workers
    /* Usage */
    const seconds = Math.ceil((CONFIG.sim.depth * rounds * logPenT) / (speed * effWork));
    const heapAvg = Math.ceil((CONFIG.sim.depth * logPenR) / 6);   // Avg: ~1MB per 6 sim-hours
-   const heapMax = Math.ceil(heapAvg * 1.45 + 100);
+   const heapMax = Math.ceil(heapAvg * 1.4 + 100);
    const ramTot  = workers * heapAvg / 1024;
    /* With units */
    const heapEst = `${heapAvg}/${heapMax} MB (avg/max)`;  // Spike heap
@@ -399,10 +399,10 @@ function getUserPermission(perms) {
       `RAM Total:       ${ramEst}\n  ` +
       `COMPLETION TIME: \x1b[36m${timeEst}\x1b[0m`);
 
-   if (freemem() / (1024**3) < ramTot * 1.1) console.log(`\x1b[33m[Warning]: DEPTH*WORKERS might ` +
+   if (freemem() / (1024**3) < ramTot) console.log(`\x1b[33m[Warning]: DEPTH*WORKERS might ` +
       `be to high for your total free system RAM: ${(freemem()/(1024**3)).toFixed(2)} GB\x1b[0m`);
 
-   if (CONFIG.env.workerRam < heapMax * 1.1) console.log(`\x1b[33m[Warning]: WORKER_RAM ` +
+   if (CONFIG.env.workerRam < heapMax) console.log(`\x1b[33m[Warning]: WORKER_RAM ` +
       `might be too low. Only ${CONFIG.env.workerRam} MB is allocated in .env\x1b[0m`);
 
    /* Readline prompt and user response switch */
