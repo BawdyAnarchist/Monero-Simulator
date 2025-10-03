@@ -142,30 +142,36 @@ function calculateMetrics(results) {
       if (selfishIds.has(p.id)) continue;                     // Only care about honest pool view
 
       /* Critical variables required for per-pool metrics calculations */
-      let prevTip      = startTip;
-      let orphanCount  = 0;
-      let reorgList    = [];
-      let reorgDepth   = 0;
-      let selfishCount = 0;
+      let prevScore    = startTip;
       let canonical    = 0;
+      let selfishCount = 0;
+      let orphanCount  = 0;
+      let reorgDepth   = 0;
+      let reorgList    = [];
+      let gammaCount   = 0;  // For easier comparison/validation, we provide an effective gamma
+      let forkCount    = 0;
 
-      /* Reorgs detection. Reorgs arent merely the orphan count, but an actual head switch */
+
+      /* Reorgs detection. Reorgs arent merely the orphan count, but an actual head switch
+         Order is crucial -> guaranteed by object creation + integrateStrategy in the sim_engine */
       const scores = Object.entries(p.scores);                // Copy the pool's scores object
       for (const [id, score] of scores) {
+         const scoreIsSelfish = selfishIds.has(blocks[id].poolId);
+
          if (score.isHeadPath) {
-            canonical++;                   // Count of canonical blocks (not all blocks produced
-            if (selfishIds.has(blocks[id].poolId)) selfishCount++;
-            if (reorgDepth > 0) {           // Reorg depth > 0 only when prevTip was not headPath
-               reorgList.push(reorgDepth);  // Track all unique, completed reorg lengths
+            canonical++;                           // Count all canonical blocks excluding orphans
+            if (scoreIsSelfish) selfishCount++;    // Count all selfish that are canonical
+
+            /* The score is canonical, pool is now aligned, but was previously wrong (must reorg) */
+            if (id === score.chaintip && reorgDepth > 0) {
+               reorgList.push(reorgDepth);         // Track all unique, completed reorg lengths
                reorgDepth = 0;
             }
          } else {
-            /* Non-selfish blocks not in head path, and not latency artifacts (genuine orphans) */
-            if (selfishIds.has(blocks[id].poolId)) continue;
-            orphanCount++;
-            if (blocks[id].height !== blocks[prevTip].height) reorgDepth++;
+            if (!scoreIsSelfish) orphanCount++;       // We don't count selfish orphans as genuine
+            if (id === score.chaintip) reorgDepth++;  // Pool thought it was headPath, but it wasnt
          }
-         prevTip = id;
+         prevScore = id;
       }
 
       /* Nothing to report. Guard against zeros / divide by zero */
@@ -173,13 +179,14 @@ function calculateMetrics(results) {
          metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
          continue;
       }
+
       /* Calculate metrics for the pool and add to the metrics object */
       reorgList.sort((a, b) => a - b);
-      const orphanRate   = orphanCount / (canonical - 1);       // (-1) because HH0 is the startTip
-      const reorgMax     = reorgList.at(-1);
-      const reorgP99     = reorgList[Math.ceil(reorgList.length * 0.99) - 1];
-      const selfProfit   = (selfishCount / (canonical - 1)) - selfishHPP;
-      metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit, }
+      const orphanRate = orphanCount / (canonical - 1);       // (-1) because HH0 is the startTip
+      const reorgMax   = reorgList.at(-1);
+      const reorgP99   = reorgList[Math.ceil(reorgList.length * 0.99) - 1];
+      const selfProfit = (selfishCount / (canonical - 1)) - selfishHPP;
+      metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit }
    }
 
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
@@ -207,25 +214,27 @@ function prepareDataExport(results) {
       ? config.run.sweepPairs.map(p => p.value) : [];
 
    /* Summarized metrics */
-   const summaryKeys   = Object.keys(results.summary);
-   const summaryValues = summaryKeys.flatMap(key => [
-      results.summary[key].mean.toFixed(4),
-      results.summary[key].stdev.toFixed(4),
-   ]);
-   results.summary = [idx, ...summaryValues, ...sweepVals].join(',') + '\n';     // Always saved
-   results.headers['summary'] =
-      ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`]), ...sweepCols].join(',');
+   if (results.summary) {
+      const summaryKeys   = Object.keys(results.summary);
+      const summaryValues = summaryKeys.flatMap(key => [
+         results.summary[key].mean.toFixed(4),
+         results.summary[key].stdev.toFixed(4),
+      ]);
+      results.summary = [idx, ...summaryValues, ...sweepVals].join(',') + '\n';     // Always saved
+      results.headers['summary'] =
+         ['round', ...summaryKeys.flatMap(k => [k, `${k}_Std`]), ...sweepCols].join(',');
 
-   /* Metrics per pool */
-   if (config.data.metrics) {
-      const metricFields  = Object.keys(Object.values(results.metrics)[0]);
-      const metricsResult = Object.values(pools)
-         .filter(p => results.metrics[p.id])
-         .map(p => [idx, p.id, ...metricFields.map(k =>
-            results.metrics[p.id][k].toFixed(4)), ...sweepVals].join(','))
-         .join('\n') + '\n';
-      results.metrics = metricsResult;
-      results.headers['metrics'] = ['idx', 'poolId', ...metricFields, ...sweepCols].join(',');
+      /* Metrics per pool */
+      if (config.data.metrics) {
+         const metricFields  = Object.keys(Object.values(results.metrics)[0]);
+         const metricsResult = Object.values(pools)
+            .filter(p => results.metrics[p.id])
+            .map(p => [idx, p.id, ...metricFields.map(k =>
+               results.metrics[p.id][k].toFixed(4)), ...sweepVals].join(','))
+            .join('\n') + '\n';
+         results.metrics = metricsResult;
+         results.headers['metrics'] = ['idx', 'poolId', ...metricFields, ...sweepCols].join(',');
+      }
    }
 
    /* Pool scores */
@@ -269,6 +278,7 @@ function exitOrchestrationWorker(exit_code, results) {
       console.log(`[${timeNow()}] Round ${idx.toString().padStart(3, '0')} ` +
          `completed with heap size: ${(used_heap_size/1_048_576).toFixed(1)} MB`);
    }
+   prepareDataExport(results);  // Final formatting of the data and logs
    parentPort.postMessage(
       { results: results, log: LOG },
       [ results.blocks?.buffer, results.scores?.buffer ].filter(Boolean)  // No buffer if null
@@ -290,7 +300,6 @@ async function orchestrateRound() {
 
    /* Calculate and format inline, with objects loaded, and while inside a parallelized worker */
    calculateMetrics(results);
-   prepareDataExport(results);
 
    exitOrchestrationWorker(0, results);
 }
