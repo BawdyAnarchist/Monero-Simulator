@@ -55,13 +55,12 @@ function initializeResultsStorage() {
 }
 
 async function recordResultsToCSV(results, log) {
-/* Loops over the keys in streams and logs to write headers, data, and logs */
    if (!headerWritten) {
-      const headerWrites = [];  // generic promise object to await stream write completion
+      const headerWrites = [];
       for (const key in streams) {
          if (results.headers[key]) {
             let header = Buffer.from(results.headers[key] + '\n');
-            if (CONFIG.data[key].includes('.gz')) header = gzipSync(header); 
+            if (CONFIG.data[key].includes('.gz')) header = gzipSync(header);
             headerWrites.push(writeBufferToStream(streams[key], header));
          }
       }
@@ -69,11 +68,12 @@ async function recordResultsToCSV(results, log) {
       headerWritten = true;
    }
 
-   const dataWrites = [];         // generic promise object to await stream write completion
-   for (const key in streams) dataWrites.push(writeBufferToStream(streams[key], results[key]));
+   const dataWrites = [];
+   for (const key in streams)
+      if (results[key]) dataWrites.push(writeBufferToStream(streams[key], results[key]));
    await Promise.all(dataWrites);
 
-   for (const key in log) if (CONFIG.log[key])  
+   for (const key in log) if (CONFIG.log[key])
       fs.appendFileSync(CONFIG.log[key], `${key.toUpperCase()} GENERATED: ${dateNow()}\n${log[key]}`);
 }
 
@@ -487,9 +487,9 @@ async function main() {
          const { results: results, log: log, } = await promise;  // Destructure results
          await recordResultsToCSV(results, log);                 // Record results
       } catch (error) {
+         if (error.result?.results)         // Write whatever results are available
+            await recordResultsToCSV(error.result.results, error.result.log || {});
          console.error(`[${timeNow()}] FAILURE on round: ${idx}:`, error.message);
-         if (CONFIG.log.info && error.result?.log?.info)
-            fs.writeFileSync(CONFIG.log.info, `WORKER ${idx} LOG\n${error.result.log.info}\n`);
          break;
       }
    }
