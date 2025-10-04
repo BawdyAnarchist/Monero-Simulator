@@ -174,13 +174,13 @@ function initializePools() {
       p.ntpDrift     = ntpDrift;                    // Persistent ntp drift
       p.hashrate     = p.HPP * CONFIG.sim.hashrate; //hashrate based on hashpower percentage
       p.chaintip     = startTip;                    // Last guaranteed historical common ancestor
-      p.altTip       = null;                        // For selfish pools to track honest chaintip
       p.scores       = Object.create(null);
       p.scores[startTip] = score;                   // Apply score to last historical block
       p.requestIds   = new Set();                   // Missing blocks requested from the network
       p.unscored     = new Map();                   // Unscored blocks waiting on ancestor score(s)
-      p.config = CONFIG.parsed.manifest.find(
-         s => s.id === p.strategy).config;           // Save strategy manifest config
+      /* Save strategy manifest config, and populate the honest tip property for selfish pools */
+      p.config = CONFIG.parsed.manifest.find(s => s.id === p.strategy).config;
+      p.honTip = (p.config.policy.honest) ? null : startTip;
    }
 }
 
