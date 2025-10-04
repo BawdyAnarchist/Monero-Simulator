@@ -26,18 +26,18 @@ export function setLog2(logFunc2) { probe = logFunc2; }
 export function invokePoolAgent(activeEvent, p, blocks) {
 /* Entry point from the sim_engine, flow coordinator for pool behavior, returns the API contract */
    info(() => `invokePoolAgent:   ${activeEvent.simClock.toFixed(7)} ${p.id} action: ${activeEvent.action}`);
+   //info(() => `idx: ${p.config.run.sweepId} ${JSON.stringify(p.config, null, 2)}`);
 
    const newTip = activeEvent.newIds.at(-1);  // chaintip of newIds (order guaranteed)
 
    /* Chaintip is already scored. No double scoring */
    if (p.scores[newTip]?.cumDiffScore) return {
-      chaintip: p.chaintip, altTip: p.altTip,
+      chaintip: p.chaintip, honTip: p.honTip,
       timestamp: null, scores: null, broadcastIds: null, requestIds: null
    };
 
    /* Analyze the branch path between newTip <--> ancestor. Compile important scoring variables */
    const [scores, scoresIds, ancestorId, requestIds] = resolveBranch(activeEvent, p, blocks, newTip);
-
    /* Attempt to score new blocks. First failure indicates inability to score descendants (break) */
    for (const id of scoresIds)
       if (!scoreBlock(activeEvent, p, blocks, scores, id)) break;
@@ -48,10 +48,10 @@ export function invokePoolAgent(activeEvent, p, blocks) {
    /* Finally, with all possible scores rendered, identify the highest scoring chaintip */
    const maxTip = findHighestScore(p, scores);
 
-   /* Declare framework for the return contract API */
+   /* Declare struct of the return contract API */
    let results = {
       chaintip:     p.chaintip,
-      altTip:       null,
+      honTip:       null,
       timestamp:    null,
       scores:       null,
       broadcastIds: [],
@@ -62,7 +62,8 @@ export function invokePoolAgent(activeEvent, p, blocks) {
    if (p.config?.policy?.honest) {
       /* Determine if the maxTip unlocked by newIds is higher scoring than the current p.chaintip */
       const poolTipScore = p.scores[p.chaintip].cumDiffScore;
-      results.chaintip = maxTip[0] > poolTipScore ? maxTip[1] : p.chaintip;
+      results.chaintip = maxTip[0] > poolTipScore
+         ? maxTip[1] : p.chaintip;        // Also handles maxTip = null (out-of-order block arrival)
 
       if (activeEvent.action === 'RECV_OWN') {  // Pool's own blocks treated preferentially in a tie
          if (maxTip[0] === poolTipScore) results.chaintip = maxTip[1];
@@ -70,7 +71,7 @@ export function invokePoolAgent(activeEvent, p, blocks) {
          results.broadcastIds = [newTip];
       }
    } else {
-      executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results);
+      executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, ancestorId, maxTip, results);
    }
 
    /* Returned scores must show the pool's selected chaintip and isHeadPath */
@@ -79,7 +80,7 @@ export function invokePoolAgent(activeEvent, p, blocks) {
    return results;
 }
 
-function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, results) {
+function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, commonAncestor, maxTip, results) {
 /*
    The predominant selfish strategies can be generalized to two knobs: kThresh and retortPolicy.
    Combined with `state` (derived from examining the honest/selfish common ancestor), a large range
@@ -87,49 +88,56 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
 */
    info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
 
-   if (!p.altTip) p.altTip = p.chaintip;                // Should only happen once, on first call
-   if (maxTip[1] === null) maxTip[1] = p.altTip;        // Guard null maxTip with altTip id
+   const retortPolicy  = p.config.policy.retortPolicy;  // Silent vs equal-fork vs keep-lead
+   const kThresh       = p.config.policy.kThresh;       // Key inflection point after gaining a lead
+   info(() => `implementSelfish:  kT: ${kThresh} rP: ${retortPolicy}`);
 
-   const retortPolicy = p.config.policy.retortPolicy;  // Silent vs equal-fork vs keep-lead
-   const kThresh      = p.config.policy.kThresh;       // Key inflection point after gaining a lead
+   let selfTip, honTip, honAdded = 0;
+   if (activeEvent.action === 'RECV_OWN') {
+      selfTip        = newTip;
+      honTip         = p.honTip;
+      commonAncestor = honTip;     // Ancestor walk *almost* always begins at the stored p.honTip.
+      while (!p.scores[commonAncestor].isHeadPath) commonAncestor = blocks[commonAncestor].prevId;
 
-   /* Discover the shared selfish ancestor to the altTip via prevID walkback */
-   let commonAncestor = p.altTip;
-   while (!p.scores[commonAncestor].isHeadPath) commonAncestor = blocks[commonAncestor].prevId;
+      /* Edge case: Genuine overlapping blockTime by selfish -> The real ancestor will be prevId */
+      if (p.scores[honTip]?.isHeadPath && blocks[selfTip].height === blocks[honTip].height)
+         commonAncestor = blocks[honTip].prevId;
+
+      results.chaintip  = newTip;                     // Might as well set some of the results now
+      results.timestamp = scores[newTip].localTime;
+
+   } else {
+      /* maxTip null means there's no verified honTip extension. Keep p.chaintip, skip analysis */
+      if (!maxTip[1]) {
+         results.chaintip = p.chaintip;
+         return;
+      }
+      honTip         = maxTip[1];
+      selfTip        = p.chaintip;
+      honAdded       = blocks[honTip].height - blocks[p.honTip].height;
+      results.honTip = honTip;
+   }
 
    /* Calculate lengths of the honest vs selfish branches */
    const ancestorHeight = blocks[commonAncestor].height;
-   const altLength      = blocks[p.altTip].height   - ancestorHeight;  // Before activeEvent
-   const selfLength     = blocks[p.chaintip].height - ancestorHeight;  // Before activeEvent
-   const maxTipLength   = blocks[maxTip[1]].height  - ancestorHeight;  // After activeEvent
-   const zeroPrimeBump  = (altLength === selfLength) ? 2 : 1;          // Leaving state 0'
-
-   let kNew;
-   let addedLength = 0;                              // Relevant only for RECV_OTHER
-   if (activeEvent.action === 'RECV_OWN') {          // Unavoidable switching logic
-      kNew = 1 + selfLength - altLength;             // Extend the selfish branch
-      results.chaintip  = newTip;
-      results.timestamp = scores[newTip].localTime;
-   } else {
-      kNew = selfLength - maxTipLength;              // Extend the honest branch
-      results.chaintip = p.chaintip;
-      results.altTip   = maxTip[1];                  // Must update the altTip
-      addedLength      = Math.max(0, maxTipLength - altLength);  // No negatives (pollutes equation)
-   }
+   const honLength      = blocks[honTip].height - ancestorHeight;
+   const selfLength     = blocks[selfTip].height - ancestorHeight;
+   const kNew           = selfLength - honLength;
+   const zeroPrimeBump  = (selfLength > 1 && kNew === 1 && activeEvent.action === 'RECV_OWN') ? 2 : 1;
 
    info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} k: ${kNew} sL: ${selfLength}`
-      + ` aL: ${altLength} addL: ${addedLength} maxTip: ${maxTip[1]} anc: ${commonAncestor}`);
+      + ` hL: ${honLength} addL: ${honAdded} maxTip: ${maxTip[1]} anc: ${commonAncestor}`);
 
    /* Core of the generalized SM logic. For rationale and details see: docs/SELFISH_TUNING.md */
-   const abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh * selfLength) - kNew);
-   const claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
-   const retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
+   const abandonThresh = (honLength) * (Math.min(0, kThresh) - kNew);
+   const claimThresh   = (honLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
+   const retortCount   = Math.min(retortPolicy * honAdded, honAdded + 1);
 
    info(() => `implementSelfish:  ${activeEvent.simClock.toFixed(7)} ${p.id} `
       + `abandon: ${abandonThresh} claim: ${claimThresh} retortCnt: ${retortCount}`);
 
-   /* If abandon was triggered, ignore claimThreshold, and adopt the honest branch */
-   if (abandonThresh > 0) {
+   /* Abandon on policy trigger, or if there's no selfish branch (protects when kThresh < 0) */
+   if (abandonThresh > 0 || selfLength === 0) {
       results.chaintip = maxTip[1];
       return;
    }
@@ -149,12 +157,11 @@ function executeSelfishStrategy(activeEvent, p, blocks, scores, newTip, maxTip, 
       : unbroadcast.slice(0, retortCount);
    if (results.broadcastIds.length === 0) return;
 
-   /* Broadcast tip could have higher score than results.altTip. Check and update */
+   /* Broadcast tip could have higher score than results.honTip. Check and update */
    const bcTip       = results.broadcastIds.at(-1);
-   const altTip      = results.altTip ?? p.altTip;
    const bcTipScore  = scores[bcTip]?.cumDiffScore  ?? p.scores[bcTip].cumDiffScore;
-   const altTipScore = scores[altTip]?.cumDiffScore ?? p.scores[altTip].cumDiffScore;
-   if (bcTipScore > altTipScore) results.altTip = bcTip;
+   const honTipScore = scores[honTip]?.cumDiffScore ?? p.scores[honTip].cumDiffScore;
+   if (bcTipScore > honTipScore) results.honTip = bcTip;
 }
 
 function scoreBlock(activeEvent, p, blocks, scores, id) {
@@ -187,7 +194,7 @@ function scoreBlock(activeEvent, p, blocks, scores, id) {
 function resolveBranch(activeEvent, p, blocks, newTip) {
 /*
    Code logic needs the full branch from newIds back to ancestorId. Walk backwards via prevId
-   until the first pool-scored block is regarded as the heaviest. That's the common ancestor.
+   until the first pool-scored block is regarded as isHeadPath. That's the common ancestor.
 */
    info(() => `resolveBranch:     ${activeEvent.simClock.toFixed(7)} ${p.id} newTip: ${newTip}`);
 
@@ -263,6 +270,7 @@ function findHighestScore(p, scores) {
    for (const id in scores) maxTip = scores[id].cumDiffScore > maxTip[0]
       ? [ scores[id].cumDiffScore , id ]
       : maxTip;
+
    return maxTip;
 }
 
@@ -280,7 +288,7 @@ function propagateHeadPathToScores(activeEvent, p, blocks, scores, ancestorId, r
 
    /* Walkback until: A) normal extension of chaintip, or B) id = ancestor (indicating reorg) */
    let id = results.chaintip;
-   while (id !== ancestorId && id !== p.chaintip) {
+   while (id !== p.chaintip && id !== ancestorId) {
       if (!scores[id]) scores[id] = p.scores[id];
       scores[id].isHeadPath = true;   // Maintain which blocks are in the pool's heaviest path
       id = blocks[id].prevId;
