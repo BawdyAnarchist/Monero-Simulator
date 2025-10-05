@@ -173,9 +173,8 @@ function calculateMetrics(results) {
          }
          prevScore = id;
       }
-
-      /* Nothing to report. Guard against zeros / divide by zero */
-      if (canonical === 0 || reorgList.length === 0) {
+      /* Nothing to report. Guard against divide by zero. HH0 means canonical is always >= 1 */
+      if (canonical < 2) {
          metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
          continue;
       }
@@ -183,8 +182,8 @@ function calculateMetrics(results) {
       /* Calculate metrics for the pool and add to the metrics object */
       reorgList.sort((a, b) => a - b);
       const orphanRate = orphanCount / (canonical - 1);       // (-1) because HH0 is the startTip
-      const reorgMax   = reorgList.at(-1);
-      const reorgP99   = reorgList[Math.ceil(reorgList.length * 0.99) - 1];
+      const reorgMax   = reorgList.at(-1) ?? 0;
+      const reorgP99   = reorgList[Math.ceil(reorgList.length * 0.99) - 1] ?? 0;
       const selfProfit = (selfishCount / (canonical - 1)) - selfishHPP;
       metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit }
    }
