@@ -6,12 +6,13 @@
   "main": "src/main.js",
   "scripts": {
     "start": "node src/main.js",
-    "simple":    "DATA_MODE=simple LOG_MODE=''         node src/main.js",
-    "full":      "DATA_MODE=full   LOG_MODE=''         node src/main.js",
-    "sweep":     "DATA_MODE=simple LOG_MODE='' SIM_ROUNDS=sweep  node src/main.js",
-    "log":       "DATA_MODE=full   LOG_MODE=info       node src/main.js",
-    "log:probe": "DATA_MODE=full   LOG_MODE=info,probe node src/main.js",
-    "log:stats": "DATA_MODE=full   LOG_MODE=info,stats node src/main.js",
+    "simple":     "DATA_MODE=simple LOG_MODE=''         node src/main.js",
+    "full":       "DATA_MODE=full   LOG_MODE=''         node src/main.js",
+    "sweep":      "DATA_MODE=simple LOG_MODE='' SIM_ROUNDS=sweep  node src/main.js",
+    "sweep:full": "DATA_MODE=full   LOG_MODE='' SIM_ROUNDS=sweep  node src/main.js",
+    "log":        "DATA_MODE=full   LOG_MODE=info       node src/main.js",
+    "log:probe":  "DATA_MODE=full   LOG_MODE=info,probe node src/main.js",
+    "log:stats":  "DATA_MODE=full   LOG_MODE=info,stats node src/main.js",
     "lint": "eslint src/**/*.js"
   },
   "keywords": [
