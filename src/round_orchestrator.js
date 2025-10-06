@@ -172,13 +172,10 @@ function calculateMetrics(results) {
          }
 
          /* Compute gamma */
-         if (blocks[id].height === blocks[prevScore].height) {            // Contention for the head
+         if (blocks[id].height === blocks[prevScore].height) {     // Contention for the head
             const prevIsSelfish = selfishIds.has(blocks[prevScore].poolId);
-            if (scoreIsSelfish || prevIsSelfish) {                        // involving selfish pool
-               forkCount++;
-               if (selfishIds.has(blocks[score.chaintip].poolId))    // Pool mined on selfish block
-                  gammaCount++;
-            }
+            if (scoreIsSelfish || prevIsSelfish) forkCount++;      // involving selfish pool
+            if (prevIsSelfish) gammaCount++;                       // Pool saw/mined selfish first
          }
          prevScore = id;
       }
@@ -197,7 +194,6 @@ function calculateMetrics(results) {
       const gamma      = (gammaCount / forkCount) * (p.HPP / (1-selfishHPP)) ?? 0;
       metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit, gamma }
    }
-
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
    const keys = Object.keys(Object.values(metrics)[0]);
    const summary = {};
