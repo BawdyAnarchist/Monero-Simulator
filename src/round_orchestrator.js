@@ -148,9 +148,8 @@ function calculateMetrics(results) {
       let orphanCount  = 0;
       let reorgDepth   = 0;
       let reorgList    = [];
-      let gammaCount   = 0;  // For easier comparison/validation, we provide an effective gamma
+      let gammaCount   = 0;   // Track gamma to see what a realistic network might produce
       let forkCount    = 0;
-
 
       /* Reorgs detection. Reorgs arent merely the orphan count, but an actual head switch
          Order is crucial -> guaranteed by object creation + integrateStrategy in the sim_engine */
@@ -171,11 +170,21 @@ function calculateMetrics(results) {
             if (!scoreIsSelfish) orphanCount++;       // We don't count selfish orphans as genuine
             if (id === score.chaintip) reorgDepth++;  // Pool thought it was headPath, but it wasnt
          }
+
+         /* Compute gamma */
+         if (blocks[id].height === blocks[prevScore].height) {            // Contention for the head
+            const prevIsSelfish = selfishIds.has(blocks[prevScore].poolId);
+            if (scoreIsSelfish || prevIsSelfish) {                        // involving selfish pool
+               forkCount++;
+               if (selfishIds.has(blocks[score.chaintip].poolId))    // Pool mined on selfish block
+                  gammaCount++;
+            }
+         }
          prevScore = id;
       }
       /* Nothing to report. Guard against divide by zero. HH0 means canonical is always >= 1 */
       if (canonical < 2) {
-         metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0};
+         metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0, gamma: 0};
          continue;
       }
 
@@ -185,7 +194,8 @@ function calculateMetrics(results) {
       const reorgMax   = reorgList.at(-1) ?? 0;
       const reorgP99   = reorgList[Math.ceil(reorgList.length * 0.99) - 1] ?? 0;
       const selfProfit = (selfishCount / (canonical - 1)) - selfishHPP;
-      metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit }
+      const gamma      = (gammaCount / forkCount) * (p.HPP / (1-selfishHPP)) ?? 0;
+      metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit, gamma }
    }
 
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
@@ -193,9 +203,11 @@ function calculateMetrics(results) {
    const summary = {};
    keys.forEach(key => {
      const values = Object.values(metrics).map(m => m[key]);
-     const mean = values.reduce((a, b) => a + b, 0) / values.length;
-     const stdev = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
+     const sum    = values.reduce((a, b) => a + b, 0);
+     const mean   = sum / values.length;
+     const stdev  = Math.sqrt(values.reduce((a, b) => a + (b - mean) ** 2, 0) / values.length);
      summary[key] = { mean, stdev };
+     if (key === "gamma") summary[key] = { mean: sum, stdev: 0 };
    });
 
    if (config.data.metrics) results.metrics = metrics;   // Only save per-pool metrics if flagged
