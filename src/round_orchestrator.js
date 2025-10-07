@@ -198,7 +198,7 @@ function calculateMetrics(results) {
       const gamma      = (gammaCount / forkCount) * (p.HPP / (1-selfishHPP)) ?? 0;
       const difficulty = Number(blocks[latestHead].difficulty);  // Cast Num from bigInt
       const diffDiverg = difficulty / (sim.hashrate * 120)       // Divergence to expectation
-      metrics[p.id] = { orphanRate, reorgMax, reorgP99, reorgRate, selfShares, gamma, difficulty }
+      metrics[p.id] = { orphanRate, reorgMax, reorgP99, reorgRate, selfShares, gamma, diffDiverg }
    }
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
    const keys = Object.keys(Object.values(metrics)[0]);
