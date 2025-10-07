@@ -3,6 +3,7 @@
 config/*
 !config/README.md
 data/*
+!data/results/
 !data/sample_data/
 !data/sort_results.js
 docs/todo.md
