@@ -6,7 +6,7 @@
     "PING": [ 70, 200, 500 ]
   },
   "pools": {
-    "P0": { "strategy": [ "SS0" ], "HPP": [ 0.3, 0.4, 0.45 ] }, 
+    "P0": { "strategy": [ "SS0" ], "HPP": [ 0.2, 0.3, 0.4 ] },
     "HONEST": { "strategy": [ "HB0" ] }
   },
   "strategies": {
@@ -14,17 +14,7 @@
       "config": {
         "policy": {
           "kThresh": [ -1, 0, 1 ],
-          "retortPolicy": [ 0, 1 ]
-        }
-      }
-    },
-    "HS0" : {
-      "config": {
-        "scoringFunctions": {
-          "calculateDepthPenaltyTime": {
-            "k": [ 0.001, 0.003, 0.004 ],
-            "L": [ 0.7, 0.9 ]
-          }
+          "retortPolicy": [ 0, 1, 2 ]
         }
       }
     }
