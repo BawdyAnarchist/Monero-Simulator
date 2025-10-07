@@ -143,6 +143,7 @@ function calculateMetrics(results) {
 
       /* Critical variables required for per-pool metrics calculations */
       let prevScore    = startTip;
+      let latestHead   = startTip;
       let canonical    = 0;
       let selfishCount = 0;
       let orphanCount  = 0;
@@ -160,6 +161,7 @@ function calculateMetrics(results) {
          if (score.isHeadPath) {
             canonical++;                           // Count all canonical blocks excluding orphans
             if (scoreIsSelfish) selfishCount++;    // Count all selfish that are canonical
+            latestHead = id;                       // Only used for difficulty assessment (per pool)
 
             /* The score is canonical, pool is now aligned, but was previously wrong (must reorg) */
             if (id === score.chaintip && reorgDepth > 0) {
@@ -181,18 +183,22 @@ function calculateMetrics(results) {
       }
       /* Nothing to report. Guard against divide by zero. HH0 means canonical is always >= 1 */
       if (canonical < 2) {
-         metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfProfit: 0, gamma: 0};
+         metrics[p.id] = { orphanRate: 0, reorgP99: 0, reorgMax: 0, selfShares: 0, gamma: 0};
          continue;
       }
 
       /* Calculate metrics for the pool and add to the metrics object */
       reorgList.sort((a, b) => a - b);
-      const orphanRate = orphanCount / (canonical - 1);       // (-1) because HH0 is the startTip
+      const orphanRate = orphanCount / (canonical - 1);          // (-1) because HH0 is the startTip
       const reorgMax   = reorgList.at(-1) ?? 0;
       const reorgP99   = reorgList[Math.ceil(reorgList.length * 0.99) - 1] ?? 0;
-      const selfProfit = (selfishCount / (canonical - 1)) - selfishHPP;
+      const reorg10cnt = reorgList.filter(val => val >= 10).length;  // Rate of 10+ block reorgs
+      const reorgRate  = reorg10cnt / blocks[startTip].height - blocks[latestHead].height;
+      const selfShares = (selfishCount / (canonical - 1)) - selfishHPP;
       const gamma      = (gammaCount / forkCount) * (p.HPP / (1-selfishHPP)) ?? 0;
-      metrics[p.id] = { orphanRate, reorgMax, reorgP99, selfProfit, gamma }
+      const difficulty = Number(blocks[latestHead].difficulty);  // Cast Num from bigInt
+      const diffDiverg = difficulty / (sim.hashrate * 120)       // Divergence to expectation
+      metrics[p.id] = { orphanRate, reorgMax, reorgP99, reorgRate, selfShares, gamma, difficulty }
    }
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
    const keys = Object.keys(Object.values(metrics)[0]);
