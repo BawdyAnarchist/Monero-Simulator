@@ -1,14 +1,14 @@
 {
   "env": {
-    "simDepth": 1,
-    "simRounds": 1,
-    "workers": 1,
+    "simRounds": "sweep",
+    "workers": 96,
     "workerRam": 2048,
     "dataMode": "full",
     "logMode": "",
     "seed": 1
   },
   "sim": {
+    "depth": 2,
     "diffTarget": 120,
     "diffWindow": 720,
     "diffLag": 15,
@@ -21,6 +21,22 @@
     "ntpStdev": 1
   },
   "parsed": {
+    "difficulty": {
+      "DIFFICULTY_TARGET_V2": 120,
+      "DIFFICULTY_WINDOW": 720,
+      "DIFFICULTY_LAG": 15,
+      "DIFFICULTY_CUT": 60,
+      "NETWORK_HASHRATE": 4300000000
+    },
+    "dynamic": {
+      "BLOCK_SIZE": 100
+    },
+    "internet": {
+      "PING": 70,
+      "CV": 0.4,
+      "MBPS": 500,
+      "NTP_STDEV": 1
+    },
     "manifest": [
       {
         "id": "HB0",
@@ -34,11 +50,11 @@
             "kThresh": null,
             "retortPolicy": null
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       },
       {
-        "id": "HS1",
+        "id": "HS0",
         "name": "Honest_Scoring",
         "description": "Apply scoring adjustments to the difficulty of each block",
         "module": "./plugins/unified_pool_agent.js",
@@ -49,21 +65,26 @@
             "kThresh": null,
             "retortPolicy": null
           },
-          "scoringFunctions": {
+          "scoring": {
             "calculateDepthPenaltyTime": {
+              "id": "DPT",
               "k": 0.0012,
               "L": 0.9
             },
             "calculateDepthPenaltyBlocks": {
+              "id": "DPB",
               "dummy": 0.1
             },
             "calculateUncleBonusTime": {
+              "id": "UBT",
               "dummy": 0.1
             },
             "calculateUncleBonusBlocks": {
+              "id": "UBB",
               "dummy": 0.1
             },
             "calculateSkewPenalty": {
+              "id": "SP",
               "dummy": 0.1
             }
           }
@@ -81,7 +102,7 @@
             "kThresh": 0,
             "retortPolicy": 1
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       },
       {
@@ -96,7 +117,7 @@
             "kThresh": 1,
             "retortPolicy": 2
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       },
       {
@@ -109,9 +130,9 @@
           "policy": {
             "honest": false,
             "kThresh": 1,
-            "retortPolicy": 1
+            "retortPolicy": 0
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       },
       {
@@ -126,29 +147,29 @@
             "kThresh": 0,
             "retortPolicy": 0
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       },
       {
-        "id": "SS1",
-        "name": "Silent_Safe",
-        "description": "No retort to honest publish, safely claims before catchup",
+        "id": "SW0",
+        "name": "Selfish_Wildcard",
+        "description": "Just for testing",
         "module": "./plugins/unified_pool_agent.js",
         "entryPoint": "invokePoolAgent",
         "config": {
           "policy": {
             "honest": false,
-            "kThresh": 1,
-            "retortPolicy": 0
+            "kThresh": 0,
+            "retortPolicy": 2
           },
-          "scoringFunctions": {}
+          "scoring": {}
         }
       }
     ],
     "pools": {
       "P0": {
         "strategy": "SS0",
-        "HPP": 0.34
+        "HPP": 0.4
       },
       "P1": {
         "strategy": "HB0",
@@ -156,49 +177,41 @@
       },
       "P2": {
         "strategy": "HB0",
-        "HPP": 0.17
+        "HPP": 0.3
       },
       "P3": {
         "strategy": "HB0",
-        "HPP": 0.11
-      },
-      "P4": {
-        "strategy": "HB0",
-        "HPP": 0.06
-      },
-      "P5": {
-        "strategy": "HB0",
-        "HPP": 0.05
-      },
-      "P6": {
-        "strategy": "HB0",
-        "HPP": 0.03
-      },
-      "P7": {
-        "strategy": "HB0",
-        "HPP": 0.02
-      },
-      "P8": {
-        "strategy": "HB0",
-        "HPP": 0.01
+        "HPP": 0.09
       }
     },
-    "difficulty": {
-      "DIFFICULTY_TARGET_V2": 120,
-      "DIFFICULTY_WINDOW": 720,
-      "DIFFICULTY_LAG": 15,
-      "DIFFICULTY_CUT": 60,
-      "NETWORK_HASHRATE": 4300000000
-    },
-    "internet": {
-      "SEED": 1,
-      "PING": 70,
-      "CV": 0.4,
-      "MBPS": 500,
-      "NTP_STDEV": 1
-    },
-    "dynamic": {
-      "BLOCK_SIZE": 100
+    "sweeps": {
+      "pools": {
+        "P0": {
+          "strategy": [
+            "SS0"
+          ],
+          "HPP": [
+            0.3,
+            0.4
+          ]
+        }
+      },
+      "strategies": {
+        "SS0": {
+          "config": {
+            "policy": {
+              "kThresh": [
+                0,
+                1
+              ],
+              "retortPolicy": [
+                0,
+                1
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }
