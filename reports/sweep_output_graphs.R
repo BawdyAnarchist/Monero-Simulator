@@ -1,16 +1,20 @@
 # Libraries
 library(ggplot2)
+library(scales)
 
 # ---------- Setup ----------
-fp            <- "~/reports/selfish_HPP_ping.csv"
-outputs       <- c("orphanRate", "reorgMax", "reorgP99", "reorg10_BPW", "selfishShare", "gamma", "diffDiverge", )
-x_var         <- "SelfishHP"
+fp            <- "~/data/001_results_summary.csv"
+outputs       <- c("orphanRate", "reorgMax", "reorgP99", "reorg_10_BpW", "selfishShare", "gamma", "diffDiverge")
+#outputs       <- c("gamma")
+x_var         <- "selfishHP"
 pivots        <- c("kThresh", "retortPolicy")         # (0, 1, or 2+ allowed)
-filter_ping   <- NULL
+#pivots        <- c("kThresh")
+filter_ping   <- 70
 
 # Axis controls
 x_axis_type   <- "numeric"   # New variable: use "percent" or "numeric"
-y_log         <- TRUE
+y_log         <- FALSE
+y_log_floor   <- 1e-2 # Floor values for log scale. All y-values below this will be clamped to this value. Set to NULL to disable.
 x_lim         <- NULL #c(70, 300)  # Recommended for your PING data
 y_lim         <- NULL
 x_axis_breaks_include_endpoints <- TRUE 
@@ -20,7 +24,7 @@ show_points   <- FALSE
 point_size    <- 1.6
 point_stroke  <- 0.7
 line_size     <- 0.7
-line_alpha    <- 0.65
+line_alpha    <- 0.5
 linetype_values <- c("solid","dashed","dotted","dotdash","longdash","twodash")
 
 # Color controls (use one of these)
@@ -28,7 +32,7 @@ color_palette <- "Dark2"     # RColorBrewer qualitative palette
 color_values  <- c("#bb0000","#00aa00","#1166ee")
 
 # Overlap jitter: 0 is off. Try small percentages. Log-safe.
-y_separate    <- 0.014
+y_separate    <- 0.01
 
 
 # ---------- Data ----------
@@ -66,6 +70,18 @@ plot_output <- function(out) {
   
   agg <- aggregate(df[[out]], by = by_list, FUN = mean, na.rm = TRUE)
   names(agg)[names(agg) == "x"] <- "mean_y"
+  
+  # --- START: New Y-Value Flooring Logic ---
+  # If a log scale is requested and a floor is set, clamp the data.
+  if (isTRUE(y_log) && is.numeric(y_log_floor)) {
+    # Ensure the floor is a positive number, otherwise log scale is impossible.
+    if (y_log_floor <= 0) {
+      stop("`y_log_floor` must be a positive number to be used with a log scale.")
+    }
+    # Replace any value in mean_y smaller than the floor with the floor value.
+    agg$mean_y[agg$mean_y < y_log_floor] <- y_log_floor
+  }
+  # --- END: New Y-Value Flooring Logic ---
   
   if (!nrow(agg)) {
     message(sprintf("No data after filtering for output '%s'. Skipping.", out))
@@ -140,13 +156,69 @@ plot_output <- function(out) {
     )
   }
   
-  # Y scale
-  use_log <- isTRUE(y_log) && all(is.finite(agg$mean_y_adj)) && min(agg$mean_y_adj, na.rm = TRUE) > 0
-  if (use_log) {
-    p <- p + scale_y_log10(limits = y_lim)
-  } else {
-    p <- p + scale_y_continuous(limits = y_lim)
+  # --- START: Final Y-Axis Logic with DYNAMIC Number Formatting ---
+  
+  # 1. DETERMINE THE REQUIRED PRECISION FOR SMALL NUMBERS
+  # Default to 2 decimal places if no floor is set.
+  decimal_places <- 2 
+  if (isTRUE(y_log) && is.numeric(y_log_floor) && y_log_floor > 0) {
+    # Calculate decimal places directly from the y_log_floor value.
+    # This makes the formatting respect your clamp.
+    floor_str <- format(y_log_floor, scientific = FALSE)
+    if (grepl("\\.", floor_str)) {
+      # Count the characters after the decimal point.
+      decimal_places <- nchar(strsplit(floor_str, "\\.")[[1]][2])
+    } else {
+      # If the floor is an integer (e.g., 1), use 0 decimal places.
+      decimal_places <- 0
+    }
   }
+  
+  # 2. CREATE THE DYNAMIC FORMATTING FUNCTION
+  # This function applies the rules you specified.
+  dynamic_formatter <- function(x) {
+    # Build the format string for sprintf, e.g., "%.3f" if decimal_places is 3
+    small_num_format <- paste0("%.", decimal_places, "f")
+    
+    # Apply formatting conditionally:
+    # - If a value is >= 10, format as an integer with commas.
+    # - Otherwise, use the decimal format determined by your y_log_floor.
+    ifelse(x >= 10, scales::comma(x, accuracy = 1), sprintf(small_num_format, x))
+  }
+  
+  # 3. APPLY THE FORMATTER TO THE SCALES
+  use_log <- isTRUE(y_log) && 
+    all(is.finite(agg$mean_y_adj)) && 
+    min(agg$mean_y_adj, na.rm = TRUE) > 0
+  
+  if (use_log) {
+    # --- START: New Minor Log Breaks Logic ---
+    
+    # Calculate the range of exponents (powers of 10) covered by the data
+    y_range <- range(agg$mean_y_adj[agg$mean_y_adj > 0], na.rm = TRUE)
+    min_exp <- floor(log10(y_range[1]))
+    max_exp <- ceiling(log10(y_range[2]))
+    
+    # Generate the proper minor breaks (2*10^n, 3*10^n, etc.)
+    minor_breaks_log10 <- unlist(lapply(min_exp:max_exp, function(p) (2:9) * 10^p))
+    
+    p <- p + 
+      scale_y_log10(
+        limits = y_lim, 
+        labels = dynamic_formatter,
+        minor_breaks = minor_breaks_log10
+      ) +
+      # Add color = "gray" to this line
+      annotation_logticks(sides = "l", color = "gray96") 
+    
+    # --- END: New Minor Log Breaks Logic ---
+  } else {
+    p <- p + scale_y_continuous(limits = y_lim, labels = dynamic_formatter)
+    if (isTRUE(y_log)) {
+      warning(sprintf("Could not use log scale for output '%s'; data may contain zeros, negatives, or non-finite values even after flooring.", out))
+    }
+  }
+  # --- END: Final Y-Axis Logic ---
   
   # Color and Linetype scales
   if (!is.null(col_aes)) {
@@ -167,10 +239,15 @@ plot_output <- function(out) {
       linetype = lt_aes
     ) +
     theme_minimal(base_size = 12) +
-    theme(legend.position = "right")
+    theme(
+      legend.position = "right",
+      plot.background = element_rect(color = "gray", linewidth = 0.5, fill = NA),
+      plot.title = element_text(hjust = 0.5)
+    )
   
   p
 }
+
 # ---------- Produce charts ----------
 if (!nrow(df)) {
   message("No data after filtering. Nothing to plot.")
