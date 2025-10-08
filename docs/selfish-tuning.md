@@ -24,18 +24,18 @@ As an agent module in a state-stepping simulator, the pool agent must: *capture 
 | Parameter | Definition | Integer: Effect |
 |---|---|---|
 | `kThresh` | The critical `k` value where SM decision logic activates:<br>&nbsp;&nbsp;&nbsp;&nbsp;*Claim victory when able* OR<br>&nbsp;&nbsp;&nbsp;&nbsp;*Abandon branch on `k-1`* | **`1`:** Classic Eyal-Sirer (always take the safe win)<br>**`0`:** Stubborn (embrace 0' risk before claiming)<br>**`-1`:** Very Stubborn (tolerate falling behind) |
-| `retortPolicy` | Number of blocks to publish in response to a 1-block extension of the honest chain | **`0`:** Silent (publish nothing until reorg)<br>**`1`:** Contentious (fork every honest block)<br>**`2`:** Clobber (orphan every honest block) |
+| `retortPolicy` | Number of blocks to publish in response to a 1-block extension of the honest chain | **`0`:** Silent (publish nothing until kThresh trigger)<br>**`1`:** Contentious (fork every honest block)<br>**`2`:** Clobber (orphan every honest block) |
 
 **State Parameters**
 | Parameter | Definition |
 |---|---|
-| `commonAncestor` | `blockId` of the shared common ancestor between the honest and selfish branches |
+| `commonAncestor` | `blockId` of the shared common ancestor between the honest branch, and the activeEvent newTip branch |
 | `ancestorHeight` | Block `height` of the `commonAncestor` |
-| `selfLength` | Length of the secret selfish branch *before* integration of the activeEvent |
-| `altLength` | Length of the honest branch *before* integration of the activeEvent |
-| `addedLength` | Length added by the honest branch *after* integration of the activeEvent |
-| `kNew` | Lead of the selfish pool over the honest network, *after* analyzing the event |
-| `zeroPrimeBump` | An increment bias required to model the `0'` => `k+1` state transition:<br>&nbsp;&nbsp;&nbsp;`(altLength === selfLength) ? 2 : 1;` |
+| `selfLength` | Length of the secret selfish branch relative to the commonAncestor |
+| `honLength` | Length of the honest branch relative to the commonAncestor |
+| `honAdded` | The number of blocks added to the honest chaintip (as perceived by the agent) by the activeEvent |
+| `kNew` | Lead of the selfish pool over the honest network as a result of the activeEvent |
+| `zeroPrimeBump` | An increment bias required to model the `0'` => `k+1` state transition |
 
 ---
 
@@ -48,14 +48,14 @@ The selfish agent only cares about three things:
 
 ```
 // Behavior is triggered when result > 0 //
-abandonThresh = (altLength + addedLength) * (Math.min(0, kThresh * selfLength) - kNew);
-claimThresh   = (altLength + addedLength) * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
-retortCount   = Math.min(retortPolicy * addedLength, addedLength + 1);
+abandonThresh = honLength * (Math.min(0, kThresh) - kNew);
+claimThresh   = honLength * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
+retortCount   = Math.min(retortPolicy * honAdded, honAded + 1);
 ```
 
 The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is incidental/irrelevant, as the decision pivot is based on `result > 0`). Some states below are unreachable/nonsensical. They can be ignored.
 
-kThresh | selfLength | kNew | zeroPrimeBump | Result Abandon | Result Claim
+kThresh | selfLength | honLength | kNew | zeroPrimeBump | AbandonThresh | claimThresh
 :--- | :--- | :--- | :--- | :--- | :---
 1 | 0 | -1 | 1 | 1 | 3
 1 | 0 | 0 | 1 | 0 | 2
