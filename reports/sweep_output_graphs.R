@@ -3,8 +3,8 @@ library(ggplot2)
 
 # ---------- Setup ----------
 fp            <- "~/reports/selfish_HPP_ping.csv"
-outputs       <- c("orphanRate", "reorgMax", "reorgP99", "reorgRate", "selfShares", "gamma", "diffDiverg", )
-x_var         <- "Selfish_HP"
+outputs       <- c("orphanRate", "reorgMax", "reorgP99", "reorg10_BPW", "selfishShare", "gamma", "diffDiverge", )
+x_var         <- "SelfishHP"
 pivots        <- c("kThresh", "retortPolicy")         # (0, 1, or 2+ allowed)
 filter_ping   <- NULL
 
