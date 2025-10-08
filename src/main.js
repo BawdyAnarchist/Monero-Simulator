@@ -400,7 +400,7 @@ function getUserPermission(perms) {
       `COMPLETION TIME: \x1b[36m${timeEst}\x1b[0m`);
 
    if (freemem() / (1024**3) < ramTot) console.log(`\x1b[33m[Warning]: DEPTH*WORKERS might ` +
-      `be to high for your total free system RAM: ${(freemem()/(1024**3)).toFixed(2)} GB\x1b[0m`);
+      `be too high for your total free system RAM: ${(freemem()/(1024**3)).toFixed(2)} GB\x1b[0m`);
 
    if (CONFIG.env.workerRam < heapMax) console.log(`\x1b[33m[Warning]: WORKER_RAM ` +
       `might be too low. Only ${CONFIG.env.workerRam} MB is allocated in .env\x1b[0m`);
