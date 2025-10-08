@@ -194,8 +194,8 @@ function calculateMetrics(results) {
       let   reorgP99     = reorgList[Math.ceil(reorgList.length * 0.99) - 1] ?? 0;
             reorgP99     = isFinite(reorgP99) ? reorgP99 : 0;
       const reorg10count = reorgList.filter(val => val >= 10).length;  // Rate of 10+ block reorgs
-      const reorg10_BPS  = reorg10count / (blocks[lastHead].simClock - blocks[startTip].simClock);
-      const reorg10_BPW  = isFinite(reorg10_BPS) ? reorg10_BPS * 3600 * 24 * 7 : 0;
+      const reorg_10_BpS = reorg10count / (blocks[lastHead].simClock - blocks[startTip].simClock);
+      const reorg_10_BpW = isFinite(reorg_10_BpS) ? reorg_10_BpS * 3600 * 24 * 7 : 0;
       const selfishShare = (selfishCount / (canonical - 1)) - selfishHP;
       let   gamma        = (gammaCount / forkCount) * (p.HPP / (1-selfishHP));
             gamma        = isFinite(gamma) ? gamma : 0;
@@ -203,7 +203,7 @@ function calculateMetrics(results) {
       const diffDiverge  = difficulty / (sim.hashrate * 120)          // Divergence to expectation
 
       metrics[p.id] = {
-         orphanRate, reorgMax, reorgP99, reorg10_BPW, selfishShare, gamma, diffDiverge
+         orphanRate, reorgMax, reorgP99, reorg_10_BpW, selfishShare, gamma, diffDiverge
       }
    }
    /* Summarize the metrics from all the pools. Include stdev to detect partitioning or divergence */
