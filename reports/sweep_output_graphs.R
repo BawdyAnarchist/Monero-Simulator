@@ -1,38 +1,41 @@
+# A moderately convenient analysis tool for viewing the key metrics relationships 
+# This tool was 99% vibe coded. It works, but don't expect it to be robust.
+
 # Libraries
 library(ggplot2)
 library(scales)
 
 # ---------- Setup ----------
+# USER TUNABLES FOR CHART SETUP 
+
 fp            <- "~/data/001_results_summary.csv"
 outputs       <- c("orphanRate", "reorgMax", "reorgP99", "reorg_10_BpW", "selfishShare", "gamma", "diffDiverge")
-#outputs       <- c("gamma")
-x_var         <- "selfishHP"
-pivots        <- c("kThresh", "retortPolicy")         # (0, 1, or 2+ allowed)
-#pivots        <- c("kThresh")
-filter_ping   <- 70
+x_var         <- "selfishHP"  # x-axis parameter
+pivots        <- c("kThresh", "retortPolicy")     # Not required, but can handle any number of pivots 
+filter_ping   <- 70  # Adhoc addition for simplifying the analysis to normal network conditions
 
 # Axis controls
-x_axis_type   <- "numeric"   # New variable: use "percent" or "numeric"
 y_log         <- FALSE
-y_log_floor   <- 1e-2 # Floor values for log scale. All y-values below this will be clamped to this value. Set to NULL to disable.
-x_lim         <- NULL #c(70, 300)  # Recommended for your PING data
-y_lim         <- NULL
-x_axis_breaks_include_endpoints <- TRUE 
+y_log_floor   <- 1e-1   # Floor values for log scale. y-values below this will be clamped. NULL to disable.
+y_lim         <- NULL   # Doe
+x_lim         <- NULL   # c(70, 300)
+x_axis_type   <- "numeric"    # New variable: use "percent" or "numeric"
+x_axis_breaks_include_endpoints <- TRUE  # The edges of a plot print their termination value and with a gridline 
 
 # Line styling
+line_size     <- 0.7
+line_alpha    <- 0.5   # Helps to see dotted lines below solid ones
+linetype_values <- c("solid","dashed","dotted","dotdash","longdash","twodash")
 show_points   <- FALSE
 point_size    <- 1.6
 point_stroke  <- 0.7
-line_size     <- 0.7
-line_alpha    <- 0.5
-linetype_values <- c("solid","dashed","dotted","dotdash","longdash","twodash")
 
 # Color controls (use one of these)
 color_palette <- "Dark2"     # RColorBrewer qualitative palette
 color_values  <- c("#bb0000","#00aa00","#1166ee")
 
-# Overlap jitter: 0 is off. Try small percentages. Log-safe.
-y_separate    <- 0.01
+# Slight jitter to reveal plots hiding behind other plots: 0 is off. Use 0.001 to 0.01 values. Log-safe.
+y_separate    <- 0.00
 
 
 # ---------- Data ----------
