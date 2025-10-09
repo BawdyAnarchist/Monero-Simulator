@@ -53,46 +53,45 @@ claimThresh   = honLength * (Math.max(0, kThresh) - kNew + zeroPrimeBump);
 retortCount   = Math.min(retortPolicy * honAdded, honAded + 1);
 ```
 
-The lookup tables below demonstrates the correctness of the equations. Note that this only applies when the honest branch has broadcast at least one block beyond the common ancestor. Otherwise that term just multiplies by zero (any scaling is incidental/irrelevant, as the decision pivot is based on `result > 0`). Some states below are unreachable/nonsensical. They can be ignored.
+The lookup tables below demonstrate the correctness of the equations. Note that for honLength = 0, multiplying by zero nullifies any abandon or claim potential. If honLength > 1 the scaling it causes is merely incidental, as result > 0 is the only relevant comparison trigger.
 
-kThresh | selfLength | honLength | kNew | zeroPrimeBump | AbandonThresh | claimThresh
-:--- | :--- | :--- | :--- | :--- | :---
-1 | 0 | -1 | 1 | 1 | 3
-1 | 0 | 0 | 1 | 0 | 2
-1 | 0 | 0’ => 1 | 2 | -1 | 2
-1 | 0 | 2 => 1 | 1 | -1 | 1
-1 | 0 | 2 | 1 | -2 | 0
-1 | 0 | 3 | 1 | -3 | -1
-0 | 0 | -1 | 1 | 1 | 2
-0 | 0 | 0 | 1 | 0 | 1
-0 | 0 | 0’ => 1 | 2 | -1 | 1
-0 | 0 | 2 => 1 | 1 | -1 | 0
-0 | 0 | 2 | 1 | -2 | -1
--1 | 0 | -2 | 1 | 2 | 3
--1 | 0 | -1 | 1 | 1 | 2
--1 | 0 | 0 | 1 | 0 | 1
--1 | 0 | 0’ => 1 | 2 | -1 | 1
--1 | 0 | 2 => 1 | 1 | -1 | 0
--1 | 0 | 2 | 1 | -2 | -1
-1 | 1 | -1 | 1 | 1 | 3
-1 | 1 | 0 | 1 | 0 | 2
-1 | 1 | 0’ => 1 | 2 | -1 | 2
-1 | 1 | 2 => 1 | 1 | -1 | 1
-1 | 1 | 2 | 1 | -2 | 0
-1 | 1 | 3 | 1 | -3 | -1
-0 | 1 | -1 | 1 | 1 | 2
-0 | 1 | 0 | 1 | 0 | 1
-0 | 1 | 0’ => 1 | 2 | -1 | 1
-0 | 1 | 2 => 1 | 1 | -1 | 0
-0 | 1 | 2 | 1 | -2 | -1
--1 | 1 | -2 | 1 | 0 | 3
--1 | 1 | -1 | 1 | 0 | 2
--1 | 1 | 0 | 1 | 0 | 1
--1 | 1 | 0’ => 1 | 2 | -1 | 1
--1 | 1 | 2 => 1 | 1 | -1 | 0
--1 | 1 | 2 | 1 | -2 | -1
+## Data Table
 
-| retortPolicy | addedLength | Result<br>retortCount |
+| k_Thresh | honLength | selfLength | kNew | zero<br>Prime<br>Bump | Abandon<br>Thresh | Claim<br>Thresh |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 1 | 0 | -1 | 1 | 1 | 3 |
+| 1 | 1 | 1 | 0 | 2 | 0 | 3 |
+| 1 | 1 | 1=>2 | 1 | 2 | -1 | 1 |
+| 1 | 1 | 3=>2 | 1 | 1 | -1 | 2 |
+| 1 | 1 | 3 | 2 | 1 | -2 | 0 |
+| 1 | 2 | 0 | -2 | 1 | 4 | 4 |
+| 1 | 2 | 1 | -1 | 2 | 2 | 4 |
+| 1 | 2 | 2 | 0 | 1 | 0 | 2 |
+| 1 | 2 | 2=>3 | 1 | 2 | -2 | 2 |
+| 1 | 2 | 4=>3 | 1 | 1 | -2 | 1 |
+| 1 | 2 | 4 | 2 | 1 | -4 | 0 |
+| 0 | 1 | 0 | -1 | 1 | 1 | 2 |
+| 0 | 1 | 1 | 0 | 2 | 0 | 2 |
+| 0 | 1 | 1=>2 | 1 | 2 | -1 | 1 |
+| 0 | 1 | 3=>2 | 1 | 1 | -1 | 0 |
+| 0 | 2 | 0 | -2 | 1 | 4 | 3 |
+| 0 | 2 | 1 | -1 | 2 | 2 | 3 |
+| 0 | 2 | 2 | 0 | 1 | 0 | 1 |
+| 0 | 2 | 2=>3 | 1 | 2 | -2 | 1 |
+| 0 | 2 | 4=>3 | 1 | 1 | -2 | 0 |
+| 0 | 2 | 4 | 2 | 1 | -4 | -1 |
+| -1 | 1 | 0 | -1 | 1 | 0 | 2 |
+| -1 | 1 | 1 | 0 | 2 | -1 | 2 |
+| -1 | 1 | 1=>2 | 1 | 2 | -2 | 1 |
+| -1 | 1 | 3=>2 | 1 | 1 | -2 | 0 |
+| -1 | 2 | 0 | -2 | 1 | 2 | 3 |
+| -1 | 2 | 1 | -1 | 2 | 0 | 3 |
+| -1 | 2 | 2 | 0 | 1 | -2 | 1 |
+| -1 | 2 | 2=>3 | 1 | 2 | -4 | 1 |
+| -1 | 2 | 4=>3 | 1 | 1 | -4 | 0 |
+| -1 | 2 | 4 | 2 | 1 | -6 | -1 |
+
+| retortPolicy | honAdded | retortCount |
 | :--- | :--- | :--- |
 | 0 | 0 | 0 |
 | 0 | 1 | 0 |
