@@ -41,7 +41,7 @@ The strategy function **MUST** return an object with the following properties (s
 | Property | Type | Description |
 |---|---|---|
 | `chaintip` | string | `blockId` that the pool considers its new chaintip after processing the event. |
-| `altTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip after processing the event. |
+| `honTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip after processing the event. |
 | `timestamp` | number \| null | **On `CREATE`:** The Unix timestamp for the new block. A strategy can manipulate this. <br> **On `RECV_OTHER`:** Must be `null`, as the received block already has a timestamp. |
 | `scores` | object \| null | Unique view of what the pool believes about the block/network. See `Scores Specification`. |
 | `requestIds` | Set() \| null | `blockIds` the pool identifies as missing, after processing the `activeEvent`. |
@@ -93,7 +93,7 @@ When handling a `RECV_OTHER` event, the strategy must score the incoming block(s
 | `hashrate` | number | The pool's absolute hashrate. |
 | `ntpDrift` | number | A constant time offset (in seconds) applied at simulation start. |
 | `chaintip` | string | The pool's current chaintip `blockId` *before* processing `activeEvent`. |
-| `altTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip. |
+| `honTip` | string \| null | `blockId` that a *selfish miner* considers to be the public honest chaintip. |
 | `requestIds` | Set() \| null | `blockIds` the pool has requested from the network, but not yet received. |
 | `unscored` | Map(number, string)<br> \| null | `(height, blockId)` the pool has received, but can't yet score. |
 | `config` | object | Pool agent specification loaded from `strategy_manifest.json` |
