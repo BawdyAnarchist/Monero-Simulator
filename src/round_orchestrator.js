@@ -246,13 +246,12 @@ function prepareDataExport(results) {
       /* Metrics per pool */
       if (config.data.metrics) {
          const metricFields  = Object.keys(Object.values(results.metrics)[0]);
-         const metricsResult = Object.values(pools)
-            .filter(p => results.metrics[p.id])
-            .map(p => [idx, p.id, ...metricFields.map(k =>
-               results.metrics[p.id][k].toFixed(4)), ...sweepVals].join(','))
+         const metricsResult = Object.entries(results.metrics)
+            .map(([poolId, metrics]) => [idx, poolId, ...metricFields.map(key =>
+               metrics[key].toFixed(4)), ...sweepVals].join(','))
             .join('\n') + '\n';
          results.metrics = metricsResult;
-         results.headers['metrics'] = ['idx', 'poolId', ...metricFields, ...sweepCols].join(',');
+         results.headers['metrics'] = ['round', 'poolId', ...metricFields, ...sweepCols].join(',');
       }
    }
 
