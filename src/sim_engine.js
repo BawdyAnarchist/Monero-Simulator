@@ -132,15 +132,17 @@ function calculateNextDifficulty(blockId) {
    const DIFFICULTY_CUT       = sim.diffCut;
    const DIFFICULTY_LAG       = sim.diffLag;
 
-   if (!diffWindows[blockId]) reconstructDiffWindow(blockId);           // Safety for edge cases
-
+   /* Prepare the difficult window */
+   if (!diffWindows[blockId]) reconstructDiffWindow(blockId);  // Guarantee diffWindow is present
    const diffWindow = [...diffWindows[blockId]]
-      .slice(0, -DIFFICULTY_LAG).slice(-DIFFICULTY_WINDOW)  // Discard recent, ensure 720 length
-      .sort((a, b) => a.timestamp - b.timestamp);
-   const timestamps              = diffWindow.map(h => h.timestamp);
+       .slice(0, -DIFFICULTY_LAG)
+       .slice(-DIFFICULTY_WINDOW)                              // Set correct window length
+
+   /* Separate the elements -> Timestamps get sorted, difficulties do not */
    const cumulative_difficulties = diffWindow.map(h => h.cumDifficulty);
+   const timestamps = diffWindow.map(h => h.timestamp).sort((a, b) => a - b);
    const length = timestamps.length;
-   if (length <= 1) return 1n;                              // Genesis block. Set to `1n` (BigInt)
+   if (length <= 1) return 1n;                                 // Genesis block. `1n` is BigInt
 
    /* Determine the cut range for outlier removal */
    let cut_begin, cut_end;
