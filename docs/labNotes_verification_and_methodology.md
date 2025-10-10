@@ -23,8 +23,6 @@ The exact history was pulled from a standard Monero full node. The sim-calculate
 
 Admittedly this is not as rigorous as a unit test, feeding a long running series of exact empirical data over many historical profiles and checking for perfect adherence. Nevertheless, for the limited data analyzed, there was an exact match. 
 
-Finally, there is likely a slight divergence in the way that trimming is accomplished. This would be a factor and a problem for modeling timestamp noise. For the preliminary analysis, NTP drift was modeled low, at a 1-sec stdev normal distribution, making the divergence negligible/irrelevant for those results. This will be fixed in future versions.
-
 ## Ping Values Inspection
 
 Some deeper thought was put into the stochastic latency model. While ping and one-way-delay (OWD) generally follow a log normal distribution, there are tail spikes due to wifi, routing, switching, and other network infrastructure artifacts. The stats() log was inspected for reasonable/sane values, and over tens of thousands of data points showed averages at their expected values. However, further corroboration could be accomplished with a histogram to visualize the exact probability curve, and of course check that against statistical expectations. 
