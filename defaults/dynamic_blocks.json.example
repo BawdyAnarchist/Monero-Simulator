@@ -1,3 +1,5 @@
 {
-  "BLOCK_SIZE": 100
+  "TXN_COUNT": 35,
+  "TXN_CV": 0.545,
+  "TXN_SIZE": 2590
 }
