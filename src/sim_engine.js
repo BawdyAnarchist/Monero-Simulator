@@ -20,18 +20,19 @@ function simulateBlockTime(p, simClock) {
 
    const nxtDifficulty = blocks[p.chaintip].nxtDifficulty;
    const lambda        = p.hashrate / Number(nxtDifficulty);  // Downgrade from BigInt
-   const timeToFind    = simNoise.blockTime(lambda);
+   const findTime      = simNoise.blockTime(lambda);  // monotonic delay till block is found
 
    /* Hashers can only start mining the new template after network latency */
    eventQueue.push({
-      simClock: simClock + simNoise.owdP2H() + timeToFind,
+      simClock: simClock + simNoise.owdP2H() + findTime,
       poolId:   p.id,
       action:  "HASHER_FIND",
       chaintip: p.chaintip,  // This is the old chaintip blockId that will be extended
       newIds:   null,        // No newId until the event is verified as "sim"-real
+      findTime: findTime,    // Save the findTime, as it's relevant for the txnCount later
    });
    info(() => `simulateBlockTime: ${simClock.toFixed(7)} ${p.id} tip: ${p.chaintip} ` +
-       `timeToFind: ${timeToFind.toFixed(0)}`);
+       `findTime: ${findTime.toFixed(0)}`);
 }
 
 function hasherFindsBlock(p, activeEvent) {
@@ -74,13 +75,14 @@ function generateBlock(p, activeEvent) {
       blockId:        newBlockId, 
       prevId:         b.blockId,
       timestamp:      null,                  // Defer, as strategies might manipulate timestamp
+      transactions:   simNoise.txnCount(activeEvent.findTime),
       difficulty:     b.nxtDifficulty,
       cumDifficulty:  b.nxtDifficulty + b.cumDifficulty,
       nxtDifficulty:  null,                  // Needs a timestamp. Defer till after strategy
       broadcast:      null,                  // Need pool strategy before deciding to broadcast
    }
-   blocks[newBlockId]   = newBlock;
-   activeEvent.newIds   = [newBlockId];      // API requires an array
+   blocks[newBlockId] = newBlock;
+   activeEvent.newIds = [newBlockId];        // API requires an array
 
    info(() => `generateBlock:     ${activeEvent.simClock.toFixed(7)} ${p.id} newId: ${newBlockId}`);
    return true;
@@ -94,17 +96,24 @@ function broadcastBlock(newIds, activeEvent) {
    /* Guarantee ascending order by height of newIds for new events */
    newIds = newIds.toSorted((a, b) => blocks[a].height - blocks[b].height);
 
+   let numTxns=0, numBlocks=0;
+   for (const id of newIds) {
+      numTxns += blocks[id].transactions;  // Verification time will need total txn count
+      blocks[id].broadcast = true;           // Set the block as broadcast
+      numBlocks++;
+   }
+
    for (const p of Object.values(pools)) {
-      if (p.id === activeEvent.poolId) continue;             // Skip pool who found the block
-      eventQueue.push({
-         simClock:  activeEvent.simClock + simNoise.owdP2P(),  // Assume fluffy, no BW penalty
+      if (p.id === activeEvent.poolId) continue;              // Skip pool who found the block
+      eventQueue.push({   // Assume fluffy, no BW penalty, only latency and verification delay
+         simClock:  activeEvent.simClock + simNoise.owdP2P() + simNoise.verify(numTxns, numBlocks),
+//         simClock:  activeEvent.simClock + simNoise.owdP2P(),
          poolId:    p.id,
          action:   "RECV_OTHER",
          chaintip:  null, 
          newIds:    newIds,
       });
    }
-   for (const id of newIds) blocks[id].broadcast = true;   // Set the block as broadcast
    info(() => `broadcastBlock:    ${activeEvent.simClock.toFixed(7)} ${activeEvent.poolId} blocks: ${newIds}`);
 }
 
@@ -220,16 +229,22 @@ function integrateStrategyResults(p, activeEvent, results) {
 
    /* Maintains realism for out-of-order blocks, and partition healing */
    if (results.requestIds) {
+      let numTxns = 0, numBlocks = 0;
       let requestIds = new Set();
-      for (const id of results.requestIds) {  // Prevent duplicate future events/requests
-         if (!p.requestIds.has(id)) {
+      for (const id of results.requestIds) {
+         numTxns += blocks[id].transactions;        // numTxns/Blocks for bandwidth delay calculation
+         numBlocks++;
+         if (!p.requestIds.has(id)) {               // Prevent duplicate future events/requests
             p.requestIds.add(id);
             requestIds.add(id);
          }
       }
-      if (requestIds.size > 0) {  // Use heuristic - No fluffy for missing blocks. It's a negligible
-         eventQueue.push({        // factor for fast a network, but critical for a degraded network.
-            simClock:  activeEvent.simClock + 2*simNoise.owdP2P() + simNoise.transTime()*requestIds.size,
+
+      /* Assume no fluffy for missing blocks. Negligible for fast network, critical for degraded */
+      if (requestIds.size > 0) {
+         const bwDelay = ((numTxns*sim.txnSize) + (numBlocks*100)) / (sim.mbps * 1024 * 1024 / 8);
+         eventQueue.push({
+            simClock:  activeEvent.simClock + simNoise.owdP2P() + simNoise.owdP2P() + bwDelay,
             poolId:    p.id,
             action:   "RECV_OTHER",
             chaintip:  null,                               // Guarantee height-order of newIds

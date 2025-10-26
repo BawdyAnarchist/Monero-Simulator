@@ -33,6 +33,12 @@ In a more speculative but necessary endeavor - the aforementioned tail spike pro
 
 Obviously, deeper research would be needed refine the tail spike model specifically, and the stochastic model of global internet latency in general. At a minimum, I'm mostly confident that the baseline model for ping below 1000ms is reasonable.
 
+## Transactions per Block
+
+Data from March 2025 to Oct 2025 was examined to determine the empirically observed txns/block which was then divided by elapsed time based on the timestamp to get txns/sec for each block. NaN and values equal or less than zero were thrown out (nonsensical/unreliable) as well as removing the highest 15% of valid values. This loosely resembles the difficult_cut, perhaps a bit more aggressive, and seeks to characterize the middle bulk of txns/sec observed per block. Best fit was determined to be a gamma distribution (vs normal, log normal, and weibull). These are the default recommended values for config/dynamic_blocks.json, although more user-friendly familiar values are presented for easier adjustment: txns/block "average" and "CV".   
+
+Thus, on the backend, the sim adjusts these config values, and samples from this gamma distribution to determine the txns/sec to expect for any given block, and then multiplies by the elapsed time between blocks to generate the final `transactions` property of each block[].   
+
 ## Stochastic Sampling
 
 Some basic optimizations were attempted for the stochastic implementation. Uniquely seeding each stochastic sampler reduces variance when comparing between permutations. Further work still needs to be accomplished here, by creating pool-specific seeded generators for each sampled distribution. Particularly for block times. This would further reduce variance, and confer slightly more confidence when analyzing permutations for statistically significant differences.

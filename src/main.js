@@ -113,10 +113,10 @@ function importHistory() {
 
    let blocks     = Object.create(null);
    let diffWindow = [];
-   let blockId, height, timestamp, difficulty, cumulative_difficulty;
+   let blockId, height, timestamp, difficulty, cumulative_difficulty, transactions;
 
    for (const line of history) {
-      [height, timestamp, difficulty, cumulative_difficulty] = line.split(',');
+      [height, timestamp, difficulty, cumulative_difficulty, transactions] = line.split(',');
       blockId = `${+height}_HH0`;
       const newBlock = {
          simClock:      +timestamp,             // "True" Unix date the moment block was found by pool 
@@ -125,6 +125,7 @@ function importHistory() {
          blockId:        blockId,               // For sim simplicity, blockId is just 'height_pool' 
          prevId:        `${+height - 1}_HH0`,
          timestamp:     +timestamp,             // Block header epoch
+         transactions:  +transactions,
          difficulty:     BigInt(difficulty),    // BigInt coz it gets added to cumDifficulty 
          nxtDifficulty:  null,                  // Difficulty required to mine the next block
          cumDifficulty:  BigInt(cumulative_difficulty),  // Maintain precision with BigInt
@@ -148,7 +149,7 @@ function importHistory() {
    }
 
    if (diffWindow.length > CONFIG.sim.diffWindow + CONFIG.sim.diffLag)
-         diffWindow = diffWindow.slice(-(CONFIG.sim.diffWindow + CONFIG.sim.diffLag));
+      diffWindow = diffWindow.slice(-(CONFIG.sim.diffWindow + CONFIG.sim.diffLag));
    let diffWindows      = Object.create(null);
    diffWindows[blockId] = diffWindow;  
 

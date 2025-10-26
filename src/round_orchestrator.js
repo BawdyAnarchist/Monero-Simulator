@@ -7,7 +7,7 @@ import path from 'path';
 import { parentPort, workerData } from 'node:worker_threads';
 import v8 from 'v8';
 import { gzipSync } from 'node:zlib';
-import { randomLcg, randomLogNormal, randomExponential } from 'd3-random';
+import { randomLcg, randomLogNormal, randomExponential, randomGamma, randomPoisson } from 'd3-random';
 import { runSimulationEngine } from './sim_engine.js';
 
 /* Data objects passed by the worker manager in main */
@@ -36,15 +36,15 @@ function makeNoiseFunctions() {
    distinct network profiles. Hasher<-->Pool is assumed to be about 2x worse than pool<-->pool.
    Even under normal network, tail-end ping-time spikes are common. They're part of the model.
 */
-   /* Ping was used in .env for familiarity, but sim uses one-way-delay (owd) */
-   const ping    = sim.ping / 1e3;                            // ms -> sec (sim consistency)
-   const CV      = sim.cv;
-   const sigma   = Math.sqrt(Math.log(1 + CV*CV));            // pool-to-pool (P2P)
-   const pingMu  = Math.log(ping) - 0.5 * sigma * sigma;      // One-way latency
-   const sigma2  = Math.sqrt(Math.log(1 + CV*CV));            // Pool-to-hasher (P2H) penalty
-   const pingMu2 = Math.log(ping*2) - 0.5 * sigma2 * sigma2;  // One-way latency
-   const txTime  = sim.blockSize / (sim.mbps * 1024 / 8)      // Block tx time. Mbps -> KB/sec
-   const txMu    = Math.log(txTime) - 0.5 * sigma * sigma;
+   /* Ping was used in the user config for familiarity, but sim uses one-way-delay (owd) */
+   const ping     = sim.ping / 1e3;                            // ms -> sec (sim consistency)
+   const CV       = sim.cv;
+   const sigma    = Math.sqrt(Math.log(1 + CV*CV));            // pool-to-pool (P2P)
+   const pingMu   = Math.log(ping) - 0.5 * sigma * sigma;      // One-way latency
+   const sigma2   = Math.sqrt(Math.log(1 + CV*CV));            // Pool-to-hasher (P2H) penalty
+   const pingMu2  = Math.log(ping*2) - 0.5 * sigma2 * sigma2;  // One-way latency
+   const txnK     = 1 / (sim.txnCV * sim.txnCV - 1 / sim.txnCount);
+   const txnTheta = (sim.txnCount / sim.diffTarget) / txnK;
 
    /* Ping spike model. Rare/random delays, scale up by ping to mimic network degradation */
    const spikeProb = (base_pct) => base_pct-0.01 + (1-base_pct) * (ping/(ping + 5)); // Magic (s-curve)
@@ -56,34 +56,40 @@ function makeNoiseFunctions() {
    const seed    = parsed.sweeps ? env.seed : env.seed + idx;
    const rngP2P  = randomLcg(seed + 10001);
    const rngP2H  = randomLcg(seed + 20002);
-   const rngTx   = randomLcg(seed + 30003);
-   const rngExp  = randomLcg(seed + 40004);
-   const rngOwdP = randomLcg(seed + 50005);
-   const rngOwdH = randomLcg(seed + 60006);
+   const rngOwdP = randomLcg(seed + 30003);
+   const rngOwdH = randomLcg(seed + 40004);
+   const rngExp  = randomLcg(seed + 50005);
+   const rngTxn  = randomLcg(seed + 60006);
+   const rngPois = randomLcg(seed + 70007);
+   const rngVer  = randomLcg(seed + 80008);
 
    const logNormalP2P = randomLogNormal.source(rngP2P);
    const logNormalP2H = randomLogNormal.source(rngP2H);
-   const logNormalTx  = randomLogNormal.source(rngTx);
    const expFactory   = randomExponential.source(rngExp);
+   const gammaFactory = randomGamma.source(rngTxn);
+   const poisFactory  = randomPoisson.source(rngPois);
+   const logNormalVer = randomLogNormal.source(rngVer);
 
-   const baseP2P    = logNormalP2P(pingMu,  sigma);
-   const baseP2H    = logNormalP2H(pingMu2, sigma2);
-   const baseTxTime = logNormalTx(txMu, sigma);
+   const baseP2P = logNormalP2P(pingMu,  sigma);
+   const baseP2H = logNormalP2H(pingMu2, sigma2);
+   const txnRate = gammaFactory(txnK, txnTheta);  // txns per sec
+   const verJitr = logNormalVer(-0.0113, 0.15);   // Hard coded as jitter/cache miss is minor
 
    /* Call the samplers, with the stats() log integrated for correctness auditing */
-   const owdP2P = () => {                        // 1% prob of 2x spike at 50ms P2P
+   const owdP2P = () => {                         // 1% prob of 2x spike at 50ms P2P
       const value = rngOwdP() < spikeProb(0.01) ? baseP2P() * spikeMult() : baseP2P();
       stats(() => `owdP2P: ${value}`);
       return value;
    };
-   const owdP2H = () => {                        // 4% prob of 2x spike at 50ms P2P
+   const owdP2H = () => {                         // 4% prob of 2x spike at 50ms P2P
       const value = rngOwdH() < spikeProb(0.04) ? baseP2H() * spikeMult() : baseP2H();
       stats(() => `owdP2H: ${value}`);
       return value;
    };
-   const transTime = () => {
-      const value = baseTxTime();
-      stats(() => `transTime: ${value}`);
+   const txnCount = (findTime) => {
+      const lambda = txnRate() * findTime;
+      const value  = poisFactory(lambda)();  // Poisson factory discretizes the gamma distribution
+      stats(() => `txnCount: ${value}  findTime: ${findTime}`);
       return value;
    };
    const blockTime = (lambda) => {
@@ -91,12 +97,19 @@ function makeNoiseFunctions() {
       stats(() => `BlockTime_λ: ${value} ${lambda}`);
       return value;
    };
+   const verifyTime = (transactions, numBlocks) => {
+      // 0.5 ms header, 0.1 ms per txn, incorporate jitter/cache miss
+      const value = (0.0007*numBlocks + 0.0001*transactions) * verJitr();  // In seconds
+      stats(() => `verifyTime: ${value} txns: ${transactions} numBlocks: ${numBlocks}`);
+      return value;
+   };
 
    return {
-      owdP2P:    owdP2P,                        // One-Way-Delay, Pool-to-Pool
-      owdP2H:    owdP2H,                        // One-Way-Delay, Pool-to-Hasher
-      transTime: transTime,                     // Time to send block, not including OWD
-      blockTime: blockTime,                     // Per-pool expected blockTime
+      owdP2P:    owdP2P,         // One-Way-Delay, Pool-to-Pool
+      owdP2H:    owdP2H,         // One-Way-Delay, Pool-to-Hasher
+      txnCount:  txnCount,       // Transaction count inside a block
+      blockTime: blockTime,      // Per-pool expected blockTime
+      verify:    verifyTime,     // Verification for new blocks (assumes sigs already verified)
    }
 }
 

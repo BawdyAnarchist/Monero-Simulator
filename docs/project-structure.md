@@ -108,9 +108,17 @@ Logs saved at: [data](https://github.com/BawdyAnarchist/Monero-Simulator/tree/ma
 
 ## *`config/dynamic_blocks.json`*
 
-**BLOCK_SIZE**   
-&nbsp;&nbsp;&nbsp;&nbsp;- Size of each block, in kilobytes. Remains constant throughout the sim.   
-&nbsp;&nbsp;&nbsp;&nbsp;- Fluffy blocks are assumed, but certain conditions will cause a block propagation delay to activate.   
+**TXN_COUNT**   
+&nbsp;&nbsp;&nbsp;&nbsp;- The "average" number of transactions in each block.    
+&nbsp;&nbsp;&nbsp;&nbsp;- For 20-25k transactions/day, this comes out to 28-35 txns/block.   
+
+**TXN_CV**   
+&nbsp;&nbsp;&nbsp;&nbsp;- The variance of transactions from one block to the next.   
+&nbsp;&nbsp;&nbsp;&nbsp;- A value of 0.545 produces a similar distribution for empirical data from 2025 (black marble data excluded).  
+
+**TXN_SIZE**   
+&nbsp;&nbsp;&nbsp;&nbsp;- Assumed bytes for each transaction. This is static and not modeled stochastically.   
+&nbsp;&nbsp;&nbsp;&nbsp;- A value of 2590 is the approximate average for empirical data from 2025.    
 
 ## *`config/internet.json`*
 
